@@ -8,11 +8,39 @@ resize();
 window.addEventListener('resize', resize);
 
 const N = Math.floor(0.00012*window.innerWidth*window.innerHeight) + 80;
-const MAX_SPEED = 0.6;
+const MAX_SPEED = 0.5;
 const STARS = [];
 let t = 0;
 const mouse = { x: -9999, y: -9999 };
-const R = 120;
+const R = 85;
+
+const cam = { x: 0, y: 0, vx: 0.04, vy: 0.02, auto: true };
+const wrap = (n, max) => {
+    n %= max;
+    return n < 0 ? n + max : n;
+};
+
+window.addEventListener('keydown', (e) => {
+    const kick = 0.6;
+    if (e.key === 'ArrowUp') {
+        cam.vy -= kick;
+        cam.auto = false;
+    }
+    if (e.key === 'ArrowDown') {
+        cam.vy += kick;
+        cam.auto = false;
+    }  
+    if (e.key === 'ArrowLeft') {
+        cam.vx -= kick;
+        cam.auto = false;
+    }
+    if (e.key === 'ArrowRight') {
+        cam.vx += kick;
+        cam.auto = false;
+    }
+    if (e.key === ' ') cam.auto = !cam.auto;
+    if (e.key === '0') { cam.x = cam.y = cam.vx = cam.vy = 0; cam.auto = false; }
+});
 
 const rand = (a, b) => a + Math.random() * (b - a);
 const sign = () => Math.random() < 0.5 ? -1 : 1;
@@ -20,7 +48,7 @@ const sign = () => Math.random() < 0.5 ? -1 : 1;
 STARS.push({
     x: rand(0, canvas.width),
     y: rand(0, canvas.height),
-    r: rand(0.7, 1.8),
+    r: rand(1.0, 2.2),
     vx: rand(0.1, MAX_SPEED) * sign(),
     vy: rand(0.1, MAX_SPEED) * sign(),
     phase: rand(0, 2 * Math.PI)
@@ -81,23 +109,29 @@ function loop() {
         drawStar(s, b);
     }
 
-    const maxLinks = 3;
-    const linkCounts = new Array(STARS.length).fill(0);
+    const k = 2;
+    ctx.lineWidth = 1;
 
-ctx.lineWidth = 1;
+    const drawn = new Set();
+
 for (let i = 0; i < STARS.length; i++) {
     const a = STARS[i];
-    for (let j = i + 1; j < STARS.length; j++) {
-        if (linkCounts[i] >= maxLinks || linkCounts[j] >= maxLinks) continue;
+    const neigh = [];
+    for (let j = 0; j < STARS.length; j++) {
+        if (j==i) continue;
         const b = STARS[j];
         const dx = a.x - b.x;
         const dy = a.y - b.y;
         const d = Math.hypot(dx, dy);
-        if (d >= R) continue;
-        
-        const keepProb = (1 - d / R)*0.6;
-        if (Math.random() > keepProb) continue;
-            let alpha = 1.0 - d / R;
+        if (d < R) neigh.push({ j, d, b});
+    }
+    neigh.sort((u, v) => u.d - v.d);
+    const top = neigh.slice(0, k);
+    for (const {j, b, d} of top) {
+        const key = i < j ? `${i}-${j}` : `${j}-${i}`;
+        if (drawn.has(key)) continue;
+        drawn.add(key);
+            let alpha = Math.max(0.08,Math.pow(1 - d / R, 1.8));
 
             const dm = Math.min(
                 Math.hypot(a.x - mouse.x, a.y - mouse.y),
@@ -105,7 +139,18 @@ for (let i = 0; i < STARS.length; i++) {
             );
             if (dm < 140) alpha = Math.min(1, alpha + (140 - dm) / 300);
 
-            ctx.strokeStyle = `rgba(255, 255, 255, ${0.6 * alpha})`;
+            const w = 0.5 + alpha * 0.9;
+            ctx.lineWidth = w;
+
+            const grad = ctx.createLinearGradient(a.x, a.y, b.x, b.y);
+            grad.addColorStop(0.0, `rgba(255, 255, 255, ${alpha*0.35})`);
+            grad.addColorStop(0.5, `rgba(255, 255, 255, ${alpha})`);
+            grad.addColorStop(1.0, `rgba(255, 255, 255, ${alpha*0.35})`);
+            ctx.strokeStyle = grad;
+
+            ctx.shawdowBlur = alpha * 4;
+            ctx.shadowColor = `rgba(255, 255, 255, 0.6)`;
+
             ctx.beginPath();
             ctx.moveTo(a.x, a.y);
             ctx.lineTo(b.x, b.y);
