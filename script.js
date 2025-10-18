@@ -5,7 +5,8 @@ canvas.width = window.innerWidth;
 canvas.height = window.innerHeight;
 }
 resize();
-window.addEventListener('resize', resize);
+window.addEventListener('resize', () => {resize();
+window.scrollTo(0,0);});
 
 const N = Math.floor(0.00012*window.innerWidth*window.innerHeight) + 80;
 const MAX_SPEED = 0.5;
@@ -14,13 +15,15 @@ let t = 0;
 const mouse = { x: -9999, y: -9999 };
 const R = 85;
 
-const cam = { x: 0, y: 0, vx: 0.04, vy: 0.02, auto: true };
+const cam = { x: 0, y: 0, vx: 0.5, vy: 0.05, auto: true };
 const wrap = (n, max) => {
     n %= max;
     return n < 0 ? n + max : n;
 };
 
 window.addEventListener('keydown', (e) => {
+    const keys = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '];
+    if (keys.includes(e.key)) e.preventDefault();
     const kick = 0.6;
     if (e.key === 'ArrowUp') {
         cam.vy -= kick;
@@ -94,6 +97,21 @@ function drawStar(s, brightness){
 
 function loop() {
     t += 0.016;
+    if (cam.auto) {
+        cam.x += cam.vx;
+        cam.y += cam.vy;
+    } else {
+        cam.x += cam.vx;
+        cam.y += cam.vy;
+        cam.vx *= 0.98;
+        cam.vy *= 0.98;
+
+        if (Math.abs(cam.vx) < 0.02 && Math.abs(cam.vy) < 0.02) {
+            cam.auto = true;
+            cam.vx = 0.5;
+            cam.vy = 0.05;
+        }
+    }
     ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
@@ -106,7 +124,9 @@ function loop() {
         if (s.y < 0) s.y = canvas.height;
         
         const b = 0.6 + 0.4 * Math.sin(1.7*t + s.phase);
-        drawStar(s, b);
+        const rx = wrap(s.x - cam.x, canvas.width);
+        const ry = wrap(s.y - cam.y, canvas.height);
+        drawStar({x: rx, y: ry, r: s.r}, b);
     }
 
     const k = 2;
@@ -142,18 +162,38 @@ for (let i = 0; i < STARS.length; i++) {
             const w = 0.5 + alpha * 0.9;
             ctx.lineWidth = w;
 
-            const grad = ctx.createLinearGradient(a.x, a.y, b.x, b.y);
+            const ax = wrap(a.x - cam.x, canvas.width);
+            const ay = wrap(a.y - cam.y, canvas.height);
+            const bx = wrap(b.x - cam.x, canvas.width);
+            const by = wrap(b.y - cam.y, canvas.height);
+            
+            let rxA = ax, ryA = ay;
+            let rxB = bx, ryB = by;
+            const W = canvas.width;
+            const H = canvas.height;
+            
+            let ddx = rxB - rxA;
+            if(ddx > W/2) rxB -= W;
+                else if(ddx < -W/2) rxB += W;
+
+            let ddy = ryB - ryA;
+            if(ddy > H/2) ryB -= H;
+                else if(ddy < -H/2) ryB += H;
+
+            const grad = ctx.createLinearGradient(ax, ay, bx, by);
             grad.addColorStop(0.0, `rgba(255, 255, 255, ${alpha*0.35})`);
             grad.addColorStop(0.5, `rgba(255, 255, 255, ${alpha})`);
             grad.addColorStop(1.0, `rgba(255, 255, 255, ${alpha*0.35})`);
             ctx.strokeStyle = grad;
 
-            ctx.shawdowBlur = alpha * 4;
-            ctx.shadowColor = `rgba(255, 255, 255, 0.6)`;
+            //ctx.shadowBlur = alpha * 4;
+            //ctx.shadowColor = `rgba(255, 255, 255, 0.6)`;
+
+            
 
             ctx.beginPath();
-            ctx.moveTo(a.x, a.y);
-            ctx.lineTo(b.x, b.y);
+            ctx.moveTo(rxA, ryA);
+            ctx.lineTo(rxB, ryB);
             ctx.stroke();
         
     }
