@@ -1,22 +1,56 @@
 html, body {
-    margin: 0;
-    padding: 0;
-    height: 100%;
-    overflow: hidden !important;
-    background: radial-gradient(ellipse at bottom, #0d1b2a 0%, #000000 100%);
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  overflow: hidden;
+  font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, sans-serif;
 }
 
 canvas#sky {
-    position: fixed;
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  cursor: crosshair;
+}
 
-    top: 0;
-    left: 0;
-    display: block;
-    width: 100%;
-    height: 100%;
-    cursor: crosshair;
-    border: none;
-    margin: 0;
-    padding: 0;
-    overflow: hidden;
+#modes-panel {
+  position: fixed;
+  top: 16px;
+  left: 16px;
+  display: grid;
+  gap: 8px;
+  z-index: 10;
+  user-select: none;
+}
+#modes-panel button {
+  background: rgba(20, 28, 40, 0.65);
+  color: #e6eefc;
+  border: 1px solid rgba(120, 150, 200, 0.35);
+  padding: 8px 12px;
+  border-radius: 10px;
+  font: 500 14px/1 Inter, system-ui, sans-serif;
+  cursor: pointer;
+  transition: transform .08s ease, background .15s ease, border-color .15s ease;
+}
+#modes-panel button:hover { transform: translateY(-1px); }
+#modes-panel button.active { border-color: var(--accent, #7bb0ff); background: rgba(40, 56, 84, 0.85); }
+
+#hud {
+  position: fixed;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(10, 14, 20, 0.6);
+  color: #cfe1ff;
+  padding: 8px 12px;
+  border: 1px solid rgba(120,150,200,0.35);
+  border-radius: 10px;
+  font: 500 13px/1 Inter, system-ui, sans-serif;
+  z-index: 10;
+}
+
+body {
+  background: radial-gradient(ellipse at bottom, var(--bg1, #0d1b2a) 0%, var(--bg2, #000000) 100%);
 }

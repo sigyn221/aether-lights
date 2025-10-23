@@ -1,0 +1,8 @@
+:root {
+  --bg1: #0d1b2a; 
+  --bg2: #000000;  
+  --accent: #7bb0ff;
+}
+body {
+  background: radial-gradient(ellipse at bottom, var(--bg1) 0%, var(--bg2) 100%);
+}

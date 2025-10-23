@@ -1,3 +1,57 @@
+let currentMode = 'classic';
+
+const MODE_HINT = {
+  classic: 'Classic: arrows=move, space=pause drift, S=shooting star',
+  creator: 'Creator: click stars to connect, Enter=finish, Esc=cancel',
+  waves:   'Waves: G=emit wave, arrows/space as classic',
+};
+
+function setMode(mode) {
+  currentMode = mode;
+
+  const theme = document.getElementById('theme-style');
+  if (theme) theme.href = `style_${mode}.css`;
+
+  const hud = document.getElementById('hud');
+  const txt = document.getElementById('hud-text');
+  if (txt) txt.textContent = MODE_HINT[mode] || '';
+  if (hud) {
+    hud.hidden = false;
+    clearTimeout(hud._t);
+    hud._t = setTimeout(() => { hud.hidden = true; }, 2000);
+  }
+
+  const panel = document.getElementById('modes-panel');
+  if (panel) {
+    [...panel.querySelectorAll('button')].forEach(b => {
+      b.classList.toggle('active', b.dataset.mode === mode);
+    });
+  }
+}
+
+(function initModesUI(){
+  const panel = document.getElementById('modes-panel');
+  if (panel) {
+    panel.addEventListener('click', (e) => {
+      const btn = e.target.closest('button[data-mode]');
+      if (!btn) return;
+      setMode(btn.dataset.mode);
+    });
+  }
+  setMode('classic'); 
+})();
+
+(function initHUDReveal(){
+  const hud = document.getElementById('hud');
+  if (!hud) return;
+  let t;
+  window.addEventListener('mousemove', () => {
+    hud.hidden = false;
+    clearTimeout(t);
+    t = setTimeout(() => { hud.hidden = true; }, 1500);
+  });
+})();
+
 const canvas = document.getElementById('sky');
 const ctx = canvas.getContext('2d');
 function resize() {
@@ -21,6 +75,16 @@ const SHOOT_TTL = 1.2;
 const LONGPRESS_MS = 350;        
 let spawnTimer = 0;              
 let spawnDelay = Math.random() * 15 + 15; 
+
+const USER_CONSTELLATIONS = [];  
+let creator = {
+  active: false,
+  picked: [],       
+  edges: [],        
+  hoverStar: -1,    
+  pickRadius: 9     
+};
+
 
 function spawnShootingStar(fromEdge = null, sx = null, sy = null) {
   if (shootingActive) return; 
@@ -83,6 +147,22 @@ const wrap = (n, max) => {
     return n < 0 ? n + max : n;
 };
 
+function pickStarAtScreen(x, y) {
+  let best = -1, bestD = Infinity;
+  for (let i = 0; i < STARS.length; i++) {
+    const s = STARS[i];
+    const rx = wrap(s.x - cam.x, canvas.width);
+    const ry = wrap(s.y - cam.y, canvas.height);
+    const dx = rx - x, dy = ry - y;
+    const d = Math.hypot(dx, dy);
+    if (d < bestD && d <= creator.pickRadius) { 
+      bestD = d; 
+      best = i; 
+    }
+  }
+  return best;
+}
+
 window.addEventListener('keydown', (e) => {
     const keys = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '];
     if (keys.includes(e.key)) e.preventDefault();
@@ -138,7 +218,11 @@ canvas.addEventListener('mousemove', (e) => {
     const rect = canvas.getBoundingClientRect();
   mouse.x = e.clientX - rect.left;
   mouse.y = e.clientY - rect.top;
+  if (currentMode === 'creator' && creator.active) {
+    creator.hoverStar = pickStarAtScreen(mouse.x, mouse.y);
+  }
 });
+
 canvas.addEventListener('mouseleave', (e) => {
     mouse.x = -9999;
     mouse.y = -9999;
@@ -157,6 +241,7 @@ canvas.addEventListener('click', (e) => {
         phase: rand(0, 2 * Math.PI)
         });
 });
+
 
 function drawStar(s, brightness){
     ctx.beginPath();

@@ -1,0 +1,11 @@
+:root {
+  --bg1: #0a0f1f;         
+  --bg2: #03050a;
+  --accent: #9ad2ff;      
+}
+body {
+  background:
+    radial-gradient(1200px 600px at 50% 120%, rgba(20,40,80,0.25), rgba(0,0,0,0)),
+    radial-gradient(ellipse at bottom, var(--bg1) 0%, var(--bg2) 100%);
+}
+#modes-panel button.active { border-color: var(--accent); }

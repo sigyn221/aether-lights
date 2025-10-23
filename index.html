@@ -4,9 +4,21 @@
     <meta charset="UTF-8"/>
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
     <title>Aether Lights</title>
-    <link rel="stylesheet" href="styles.css"/>
+    <link rel="stylesheet" href="style.css">
+    <link id="theme-style" rel="stylesheet" href="style_classic.css">
+
 </head>
 <body>
+    <div id="modes-panel">
+    <button data-mode="classic">Classic Starfield</button>
+    <button data-mode="creator">Constellation Creator</button>
+    <button data-mode="waves">Gravitational Waves</button>
+    </div>
+
+    <div id="hud" hidden>
+    <span id="hud-text">Classic: arrows=move, space=pause drift, S=shooting star</span>
+    </div>
+
     <canvas id="sky"></canvas>
     <script src="script.js"></script>
 </body>
