@@ -8,7 +8,7 @@ const MODE_HINT = {
 
 function setMode(mode) {
   currentMode = mode;
-
+ 
   const theme = document.getElementById('theme-style');
   if (theme) theme.href = `style_${mode}.css`;
 
@@ -26,6 +26,17 @@ function setMode(mode) {
     [...panel.querySelectorAll('button')].forEach(b => {
       b.classList.toggle('active', b.dataset.mode === mode);
     });
+  }
+  if (mode !== 'creator') {
+  creator.active = false;
+  creator.play = false;
+  creator.picked = [];
+  creator.edges = [];
+  creator.hoverStar = -1;
+  }
+  if (mode === 'creator') {
+    creator.active = true;
+    creator.play = false; 
   }
 }
 
@@ -76,15 +87,15 @@ const LONGPRESS_MS = 350;
 let spawnTimer = 0;              
 let spawnDelay = Math.random() * 15 + 15; 
 
-const USER_CONSTELLATIONS = [];  
+const USER_CONSTELLATIONS = []; 
 let creator = {
   active: false,
-  picked: [],       
-  edges: [],        
-  hoverStar: -1,    
-  pickRadius: 9     
+  play: false,       
+  picked: [],
+  edges: [],
+  hoverStar: -1,
+  pickRadius: 16     
 };
-
 
 function spawnShootingStar(fromEdge = null, sx = null, sy = null) {
   if (shootingActive) return; 
@@ -189,6 +200,31 @@ window.addEventListener('keydown', (e) => {
 
     if (e.key === ' ') cam.auto = !cam.auto;
     if (e.key === '0') { cam.x = cam.y = cam.vx = cam.vy = 0; cam.auto = false; }
+    
+    if (currentMode === 'creator' && creator.active) {
+    if (e.key === 'Enter') {
+    if (creator.edges.length > 0) {
+      const name = prompt('Name your constellation:', 'My Constellation');
+      USER_CONSTELLATIONS.push({ name: name || 'Unnamed', edges: [...creator.edges] });
+    }
+    creator.picked = [];
+    creator.edges = [];
+    creator.hoverStar = -1;
+    }
+    if (e.key === 'Escape') {
+    creator.picked = [];
+    creator.edges = [];
+    creator.hoverStar = -1;
+    }
+    if (e.key === 'Backspace') {
+    e.preventDefault();
+    if (creator.edges.length > 0) creator.edges.pop();
+    if (creator.picked.length > 1) creator.picked.pop();
+    }
+    if (e.key === 'r' || e.key === 'R') {
+    creator.play = !creator.play;  
+    }
+  } 
 });
 
 const rand = (a, b) => a + Math.random() * (b - a);
@@ -241,7 +277,39 @@ canvas.addEventListener('click', (e) => {
         phase: rand(0, 2 * Math.PI)
         });
 });
+canvas.addEventListener('click', (e) => {
+  if (currentMode === 'creator' && creator.active) {
+    const rect = canvas.getBoundingClientRect();
+    const sx = e.clientX - rect.left;
+    const sy = e.clientY - rect.top;
+    const idx = pickStarAtScreen(sx, sy);
+    if (idx !== -1) {
+      const n = creator.picked.length;
+      if (n > 0) {
+        const prev = creator.picked[n - 1];
+        if (prev !== idx) {
+          creator.edges.push([prev, idx]);
+        }
+      }
+      if (creator.picked.length === 0 || creator.picked[creator.picked.length - 1] !== idx) {
+        creator.picked.push(idx);
+      }
+    }
+    return; 
+  }
 
+  const rect = canvas.getBoundingClientRect();
+  const sx = e.clientX - rect.left;
+  const sy = e.clientY - rect.top;
+  STARS.push({
+    x: wrap(sx + cam.x, canvas.width),
+    y: wrap(sy + cam.y, canvas.height),
+    r: rand(0.7, 1.8),
+    vx: rand(0.1, MAX_SPEED) * sign(),
+    vy: rand(0.1, MAX_SPEED) * sign(),
+    phase: rand(0, 2 * Math.PI)
+  });
+});
 
 function drawStar(s, brightness){
     ctx.beginPath();
@@ -338,7 +406,6 @@ function loop() {
 
     }
 
-
 for (let i = 0; i < STARS.length; i++) {
     const a = STARS[i];
     const neigh = [];
@@ -405,7 +472,100 @@ for (let i = 0; i < STARS.length; i++) {
         
     }
 }
+if (currentMode === 'creator') {
+  for (const C of USER_CONSTELLATIONS) {
+    for (const [i, j] of C.edges) {
+      const a = STARS[i], b = STARS[j];
+      const ax = wrap(a.x - cam.x, canvas.width);
+      const ay = wrap(a.y - cam.y, canvas.height);
+      const bx = wrap(b.x - cam.x, canvas.width);
+      const by = wrap(b.y - cam.y, canvas.height);
 
+      let rxA = ax, ryA = ay, rxB = bx, ryB = by;
+      const W = canvas.width, H = canvas.height;
+      let ddx = rxB - rxA; if (ddx > W/2) rxB -= W; else if (ddx < -W/2) rxB += W;
+      let ddy = ryB - ryA; if (ddy > H/2) ryB -= H; else if (ddy < -H/2) ryB += H;
+
+      ctx.lineWidth = 1.2;
+      const grad = ctx.createLinearGradient(rxA, ryA, rxB, ryB);
+      grad.addColorStop(0.0, 'rgba(255,210,120,0.25)');
+      grad.addColorStop(0.5, 'rgba(255,230,170,0.9)');
+      grad.addColorStop(1.0, 'rgba(255,210,120,0.25)');
+      ctx.strokeStyle = grad;
+      ctx.beginPath();
+      ctx.moveTo(rxA, ryA);
+      ctx.lineTo(rxB, ryB);
+      ctx.stroke();
+    }
+    if (C.edges.length) {
+      let sx = 0, sy = 0, cnt = 0;
+      for (const [i,j] of C.edges) {
+        const a = STARS[i], b = STARS[j];
+        sx += (a.x + b.x) * 0.5; sy += (a.y + b.y) * 0.5; cnt++;
+      }
+      const cx = wrap((sx/cnt) - cam.x, canvas.width);
+      const cy = wrap((sy/cnt) - cam.y, canvas.height);
+      ctx.fillStyle = 'rgba(255,220,160,0.9)';
+      ctx.font = '500 13px Inter, system-ui, sans-serif';
+      ctx.fillText(C.name, cx + 6, cy - 6);
+    }
+  }
+
+  if (creator.edges.length) {
+    for (const [i,j] of creator.edges) {
+      const a = STARS[i], b = STARS[j];
+      const ax = wrap(a.x - cam.x, canvas.width);
+      const ay = wrap(a.y - cam.y, canvas.height);
+      const bx = wrap(b.x - cam.x, canvas.width);
+      const by = wrap(b.y - cam.y, canvas.height);
+
+      let rxA = ax, ryA = ay, rxB = bx, ryB = by;
+      const W = canvas.width, H = canvas.height;
+      let ddx = rxB - rxA; if (ddx > W/2) rxB -= W; else if (ddx < -W/2) rxB += W;
+      let ddy = ryB - ryA; if (ddy > H/2) ryB -= H; else if (ddy < -H/2) ryB += H;
+
+      ctx.lineWidth = 1.3;
+      ctx.strokeStyle = 'rgba(255,230,170,0.9)';
+      ctx.beginPath();
+      ctx.moveTo(rxA, ryA);
+      ctx.lineTo(rxB, ryB);
+      ctx.stroke();
+    }
+  }
+  if (creator.picked.length > 0 && creator.hoverStar !== -1) {
+    const last = STARS[creator.picked[creator.picked.length - 1]];
+    const hov = STARS[creator.hoverStar];
+    const ax = wrap(last.x - cam.x, canvas.width);
+    const ay = wrap(last.y - cam.y, canvas.height);
+    const bx = wrap(hov.x - cam.x, canvas.width);
+    const by = wrap(hov.y - cam.y, canvas.height);
+
+    let rxA = ax, ryA = ay, rxB = bx, ryB = by;
+    const W = canvas.width, H = canvas.height;
+    let ddx = rxB - rxA; if (ddx > W/2) rxB -= W; else if (ddx < -W/2) rxB += W;
+    let ddy = ryB - ryA; if (ddy > H/2) ryB -= H; else if (ddy < -H/2) ryB += H;
+
+    ctx.setLineDash([6, 6]);
+    ctx.lineWidth = 1.0;
+    ctx.strokeStyle = 'rgba(255,230,170,0.6)';
+    ctx.beginPath();
+    ctx.moveTo(rxA, ryA);
+    ctx.lineTo(rxB, ryB);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  if (creator.hoverStar !== -1) {
+    const s = STARS[creator.hoverStar];
+    const rx = wrap(s.x - cam.x, canvas.width);
+    const ry = wrap(s.y - cam.y, canvas.height);
+    ctx.beginPath();
+    ctx.arc(rx, ry, Math.max(3, s.r + 2), 0, Math.PI*2);
+    ctx.strokeStyle = 'rgba(255,230,170,0.9)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  }
+}
     requestAnimationFrame(loop);
 }
     
