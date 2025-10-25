@@ -7,12 +7,28 @@ const MODE_HINT = {
 };
 let creator = {
   active: false,
-  play: false,       
+  play: false,
   picked: [],
-  edges: [],
+  tempEdges: [],
+  edges: [],          
   hoverStar: -1,
-  pickRadius: 16     
+  pickRadius: 16,
+  palette: [
+    'rgba(255,230,170,0.9)',
+    'rgba(170,220,255,0.95)',
+    'rgba(255,180,210,0.95)',
+    'rgba(180,255,210,0.95)'
+  ],
+  nextColorIdx: 0
 };
+
+function projectToScreen(v, W, H) {
+  if (v.z <= 0) return null;
+  const f = 0.9 * Math.min(W, H);             
+  const sx = W/2 + f * (v.x / v.z);
+  const sy = H/2 - f * (v.y / v.z);
+  return { x: sx, y: sy };
+}
 function setMode(mode) {
   currentMode = mode;
  
@@ -34,16 +50,27 @@ function setMode(mode) {
       b.classList.toggle('active', b.dataset.mode === mode);
     });
   }
+
+  if (typeof creator === 'undefined') window.creator = {};
+
   if (mode !== 'creator') {
   creator.active = false;
   creator.play = false;
   creator.picked = [];
   creator.edges = [];
   creator.hoverStar = -1;
+  cam.auto = true;
+  cam.vx = 0.5; cam.vy = 0.05;
   }
   if (mode === 'creator') {
     creator.active = true;
-    creator.play = false; 
+    creator.play = false;
+    creator.picked = [];
+    creator.tempEdges = [];
+    creator.hoverStar = -1; 
+  
+    cam.auto = false;
+    cam.vx = 0; cam.vy = 0;
   }
 }
 
@@ -176,7 +203,7 @@ function pickStarAtScreen(x, y) {
 window.addEventListener('keydown', (e) => {
     const keys = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '];
     if (keys.includes(e.key)) e.preventDefault();
-    const kick = 0.6;
+    const kick = (currentMode === 'creator') ? 0.15 : 0.6; 
     if (e.key === 'ArrowUp') {
         cam.vy -= kick;
         cam.auto = false;
@@ -202,12 +229,14 @@ window.addEventListener('keydown', (e) => {
     
     if (currentMode === 'creator' && creator.active) {
     if (e.key === 'Enter') {
-    if (creator.edges.length > 0) {
-      const name = prompt('Name your constellation:', 'My Constellation');
-      USER_CONSTELLATIONS.push({ name: name || 'Unnamed', edges: [...creator.edges] });
+   if (creator.tempEdges.length > 0) {
+      const color = creator.palette[creator.nextColorIdx % creator.palette.length];
+      creator.nextColorIdx++;
+      const name = prompt('Name your constellation:', 'My Constellation') || 'Unnamed';
+      USER_CONSTELLATIONS.push({ name, color, edges: [...creator.tempEdges] });
     }
     creator.picked = [];
-    creator.edges = [];
+    creator.tempEdges = [];
     creator.hoverStar = -1;
     }
     if (e.key === 'Escape') {
