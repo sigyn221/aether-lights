@@ -13,6 +13,7 @@ canvas#sky {
   height: 100%;
   display: block;
   cursor: crosshair;
+  z-index: 0;
 }
 
 #modes-panel {
@@ -21,7 +22,7 @@ canvas#sky {
   left: 16px;
   display: grid;
   gap: 8px;
-  z-index: 10;
+  z-index: 1000;
   user-select: none;
 }
 #modes-panel button {
@@ -48,8 +49,9 @@ canvas#sky {
   border: 1px solid rgba(120,150,200,0.35);
   border-radius: 10px;
   font: 500 13px/1 Inter, system-ui, sans-serif;
-  z-index: 10;
+  z-index: 1000;
 }
+
 
 body {
   background: radial-gradient(ellipse at bottom, var(--bg1, #0d1b2a) 0%, var(--bg2, #000000) 100%);

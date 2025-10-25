@@ -5,7 +5,14 @@ const MODE_HINT = {
   creator: 'Creator: click stars to connect, Enter=finish, Esc=cancel',
   waves:   'Waves: G=emit wave, arrows/space as classic',
 };
-
+let creator = {
+  active: false,
+  play: false,       
+  picked: [],
+  edges: [],
+  hoverStar: -1,
+  pickRadius: 16     
+};
 function setMode(mode) {
   currentMode = mode;
  
@@ -88,14 +95,7 @@ let spawnTimer = 0;
 let spawnDelay = Math.random() * 15 + 15; 
 
 const USER_CONSTELLATIONS = []; 
-let creator = {
-  active: false,
-  play: false,       
-  picked: [],
-  edges: [],
-  hoverStar: -1,
-  pickRadius: 16     
-};
+
 
 function spawnShootingStar(fromEdge = null, sx = null, sy = null) {
   if (shootingActive) return; 
@@ -166,10 +166,9 @@ function pickStarAtScreen(x, y) {
     const ry = wrap(s.y - cam.y, canvas.height);
     const dx = rx - x, dy = ry - y;
     const d = Math.hypot(dx, dy);
-    if (d < bestD && d <= creator.pickRadius) { 
-      bestD = d; 
-      best = i; 
-    }
+
+    const extra = (currentMode === 'creator') ? 6 : 0;
+    if (d < bestD && d <= (creator.pickRadius + extra)) { bestD = d; best = i; }
   }
   return best;
 }
@@ -268,39 +267,18 @@ canvas.addEventListener('click', (e) => {
     const rect = canvas.getBoundingClientRect();
     const sx = e.clientX - rect.left;
     const sy = e.clientY - rect.top;
-     STARS.push({
-        x: wrap(sx + cam.x, canvas.width),    
-        y: wrap(sy + cam.y, canvas.height),    
-        r: rand(0.7, 1.8),
-        vx: rand(0.1, MAX_SPEED) * sign(),
-        vy: rand(0.1, MAX_SPEED) * sign(),
-        phase: rand(0, 2 * Math.PI)
-        });
-});
-canvas.addEventListener('click', (e) => {
   if (currentMode === 'creator' && creator.active) {
-    const rect = canvas.getBoundingClientRect();
-    const sx = e.clientX - rect.left;
-    const sy = e.clientY - rect.top;
     const idx = pickStarAtScreen(sx, sy);
     if (idx !== -1) {
       const n = creator.picked.length;
       if (n > 0) {
         const prev = creator.picked[n - 1];
-        if (prev !== idx) {
-          creator.edges.push([prev, idx]);
-        }
+        if (prev !== idx) creator.edges.push([prev, idx]);
       }
-      if (creator.picked.length === 0 || creator.picked[creator.picked.length - 1] !== idx) {
-        creator.picked.push(idx);
-      }
+      if (n === 0 || creator.picked[n - 1] !== idx) creator.picked.push(idx);
     }
     return; 
   }
-
-  const rect = canvas.getBoundingClientRect();
-  const sx = e.clientX - rect.left;
-  const sy = e.clientY - rect.top;
   STARS.push({
     x: wrap(sx + cam.x, canvas.width),
     y: wrap(sy + cam.y, canvas.height),
@@ -340,17 +318,21 @@ function loop() {
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     for (let s of STARS) {
-        s.x += s.vx;
-        s.y += s.vy;
+        if (currentMode !== 'creator' || creator.play) {
+          s.x += s.vx;
+          s.y += s.vy;
+        }
         if (s.x > canvas.width) s.x = 0;
         if (s.x < 0) s.x = canvas.width;
         if (s.y > canvas.height) s.y = 0;
         if (s.y < 0) s.y = canvas.height;
-        
+
         const b = 0.6 + 0.4 * Math.sin(1.7*t + s.phase);
+
         const rx = wrap(s.x - cam.x, canvas.width);
         const ry = wrap(s.y - cam.y, canvas.height);
-        drawStar({x: rx, y: ry, r: s.r}, b);
+        const rr = (currentMode === 'creator') ? Math.max(s.r * 1.9, 2.2) : s.r;
+        drawStar({ x: rx, y: ry, r: rr }, b);
     }
 
     const k = 2;
@@ -362,7 +344,7 @@ function loop() {
     if (spawnTimer >= spawnDelay) {
         spawnShootingStar();
         spawnTimer = 0;
-        spawnDelay = Math.random()*5 + 4; 
+        spawnDelay = Math.random()*15 + 15; 
     }
 
     for (let i = SHOOTERS.length - 1; i >= 0; i--) {
@@ -383,9 +365,7 @@ function loop() {
         const baseTail = 28;
         const tailLen = baseTail * (s.speed / 8); 
         const tx = rx - (s.vx * (tailLen / s.speed));
-        const ty = ry - (s.vy * (tailLen / s.speed));
-
-        const a = Math.max(0, s.life / Math.max(0.001, s.life)); 
+        const ty = ry - (s.vy * (tailLen / s.speed)); 
         const fade = Math.max(0, Math.min(1, s.life)); 
 
         const grad = ctx.createLinearGradient(tx, ty, rx, ry);
@@ -419,7 +399,6 @@ for (let i = 0; i < STARS.length; i++) {
     }
     neigh.sort((u, v) => u.d - v.d);
     const top = neigh.slice(0, k);
-    for (const {j, b, d} of top) {
         for (const { j, b, d } of top) {
         const key = i < j ? `${i}-${j}` : `${j}-${i}`;
         if (drawn.has(key)) continue;
@@ -470,8 +449,8 @@ for (let i = 0; i < STARS.length; i++) {
         ctx.stroke();
         }
         
-    }
 }
+
 if (currentMode === 'creator') {
   for (const C of USER_CONSTELLATIONS) {
     for (const [i, j] of C.edges) {
