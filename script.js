@@ -28,13 +28,38 @@ let creator = {
   pitch: 0    
 };
 
-function projectToScreen(v, W, H) {
-  if (v.z <= 0) return null;
-  const f = 0.9 * Math.min(W, H);             
-  const sx = W/2 + f * (v.x / v.z);
-  const sy = H/2 - f * (v.y / v.z);
-  return { x: sx, y: sy };
+function pickCreatorStarAtScreen(mx, my) {
+  const W = canvas.width, H = canvas.height;
+  let best = -1, bestD = Infinity;
+  for (let i = 0; i < creator.stars3D.length; i++) {
+    let v = rotY(creator.stars3D[i], creator.yaw);
+    v = rotX(v, creator.pitch);
+    const p = projectToScreen(v, W, H);
+    if (!p) continue;
+    const d = Math.hypot(p.x - mx, p.y - my);
+    const extra = 6;
+    if (d < bestD && d <= (creator.pickRadius + extra)) { bestD = d; best = i; }
+  }
+  return best;
 }
+
+function drawCreatorEdgeIdx(i, j, color, lw=1.3, dash=null) {
+  const W = canvas.width, H = canvas.height;
+  let va = rotX(rotY(creator.stars3D[i], creator.yaw), creator.pitch);
+  let vb = rotX(rotY(creator.stars3D[j], creator.yaw), creator.pitch);
+  const pa = projectToScreen(va, W, H);
+  const pb = projectToScreen(vb, W, H);
+  if (!pa || !pb) return;
+  if (dash) ctx.setLineDash(dash);
+  ctx.lineWidth = lw;
+  ctx.strokeStyle = color;
+  ctx.beginPath();
+  ctx.moveTo(pa.x, pa.y);
+  ctx.lineTo(pb.x, pb.y);
+  ctx.stroke();
+  if (dash) ctx.setLineDash([]);
+}
+
 function setAutoSpeedFor(mode) {
   const speeds = {
     classic: { vx: 0.5,  vy: 0.05 },
@@ -68,21 +93,6 @@ function projectToScreen(v, W, H) {
   return { x: W/2 + f*(v.x/v.z), y: H/2 - f*(v.y/v.z) };
 }
 
-function pickCreatorStarAtScreen(mx, my) {
-  const W = canvas.width, H = canvas.height;
-  let best = -1, bestD = Infinity;
-  for (let i = 0; i < creator.stars3D.length; i++) {
-    let v = rotY(creator.stars3D[i], creator.yaw);
-    v = rotX(v, creator.pitch);
-    const p = projectToScreen(v, W, H);
-    if (!p) continue;
-    const d = Math.hypot(p.x - mx, p.y - my);
-    const extra = 6;
-    if (d < bestD && d <= (creator.pickRadius + extra)) { bestD = d; best = i; }
-  }
-  return best;
-}
-
 function setMode(mode) {
   currentMode = mode;
  
@@ -114,7 +124,7 @@ function setMode(mode) {
   creator.edges = [];
   creator.hoverStar = -1;
   cam.auto = true;
-  cam.vx = 0.5; cam.vy = 0.05;
+  setAutoSpeedFor('classic');
   }
   if (mode === 'creator') {
     creator.active = true;
@@ -122,9 +132,11 @@ function setMode(mode) {
     creator.picked = [];
     creator.tempEdges = [];
     creator.hoverStar = -1; 
-  
+    if (creator.stars3D.length === 0) genCreatorStars(260);
     cam.auto = true;              
-    setAutoSpeedFor('creator');   
+    cam.auto = false;
+    cam.vx = 0; 
+    cam.vy = 0; 
   }
 }
 
@@ -260,6 +272,44 @@ window.addEventListener('keydown', (e) => {
     const keys = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '];
     if (keys.includes(e.key)) e.preventDefault();
     const kick = (currentMode === 'creator') ? 0.15 : 0.6; 
+    if (currentMode === 'creator' && creator.active) {
+      const STEP = 0.02; 
+      if (e.key === 'ArrowLeft')  creator.yaw   -= STEP;
+      if (e.key === 'ArrowRight') creator.yaw   += STEP;
+      if (e.key === 'ArrowUp')    creator.pitch -= STEP;
+      if (e.key === 'ArrowDown')  creator.pitch += STEP;
+
+      const LIM = Math.PI/2 * 0.9;
+      if (creator.pitch >  LIM) creator.pitch =  LIM;
+      if (creator.pitch < -LIM) creator.pitch = -LIM;
+
+      if (e.key === ' ') creator.play = !creator.play;
+
+      if (e.key === 'Enter') {
+      if (creator.tempEdges.length > 0) {
+          const color = creator.palette[creator.nextColorIdx % creator.palette.length];
+          creator.nextColorIdx++;
+          const name = prompt('Name your constellation:', 'My Constellation') || 'Unnamed';
+          USER_CONSTELLATIONS.push({ name, color, edges: [...creator.tempEdges] });
+        }
+        creator.picked = [];
+        creator.tempEdges = [];
+        creator.hoverStar = -1;
+        }
+        if (e.key === 'Escape') {
+        creator.picked = [];
+        creator.tempEdges = [];
+        creator.hoverStar = -1;
+        }
+        if (e.key === 'Backspace') {
+        e.preventDefault();
+        if (creator.tempEdges.length > 0) creator.tempEdges.pop();
+        if (creator.picked.length > 1) creator.picked.pop();
+        }
+        if (e.key === 'r' || e.key === 'R') {
+        creator.play = !creator.play;  
+        }
+  }  
     if (e.key === 'ArrowUp') {
         cam.vy -= kick;
         cam.auto = false;
@@ -286,32 +336,7 @@ window.addEventListener('keydown', (e) => {
     }
     if (e.key === '0') { cam.x = cam.y = cam.vx = cam.vy = 0; cam.auto = false; }
     
-    if (currentMode === 'creator' && creator.active) {
-    if (e.key === 'Enter') {
-    if (creator.tempEdges.length > 0) {
-        const color = creator.palette[creator.nextColorIdx % creator.palette.length];
-        creator.nextColorIdx++;
-        const name = prompt('Name your constellation:', 'My Constellation') || 'Unnamed';
-        USER_CONSTELLATIONS.push({ name, color, edges: [...creator.tempEdges] });
-      }
-      creator.picked = [];
-      creator.tempEdges = [];
-      creator.hoverStar = -1;
-      }
-      if (e.key === 'Escape') {
-      creator.picked = [];
-      creator.tempEdges = [];
-      creator.hoverStar = -1;
-      }
-      if (e.key === 'Backspace') {
-      e.preventDefault();
-      if (creator.tempEdges.length > 0) creator.tempEdges.pop();
-      if (creator.picked.length > 1) creator.picked.pop();
-      }
-      if (e.key === 'r' || e.key === 'R') {
-      creator.play = !creator.play;  
-      }
-  } 
+   
 });
 
 const rand = (a, b) => a + Math.random() * (b - a);
@@ -356,7 +381,7 @@ canvas.addEventListener('click', (e) => {
     const sx = e.clientX - rect.left;
     const sy = e.clientY - rect.top;
   if (currentMode === 'creator' && creator.active) {
-    const idx = pickStarAtScreen(sx, sy);
+    const idx = pickCreatorStarAtScreen(sx, sy);
     if (idx !== -1) {
       const n = creator.picked.length;
       if (n > 0) {
@@ -386,6 +411,86 @@ function drawStar(s, brightness){
 
 function loop() {
     t += 0.016;
+    if (currentMode === 'creator' && creator.active) {
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    if (creator.play) creator.yaw += 0.002;
+
+    for (const s0 of creator.stars3D) {
+      let v = rotY(s0, creator.yaw);
+      v = rotX(v, creator.pitch);
+      const p = projectToScreen(v, canvas.width, canvas.height);
+      if (!p) continue;
+
+      const depth = Math.max(0.001, v.z);                
+      const size  = Math.max(1.0, s0.mag * (1.2 + 0.6/depth));
+      const alpha = Math.min(1, 0.55 + 0.8/depth);
+
+      const rHalo = size * 2.2;
+      const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, rHalo);
+      g.addColorStop(0, `rgba(255,255,255,${alpha * 0.6})`);
+      g.addColorStop(1, `rgba(255,255,255,0)`);
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, rHalo, 0, Math.PI*2);
+      ctx.fill();
+
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, size, 0, Math.PI*2);
+      ctx.fillStyle = `rgba(255,255,255,${Math.min(1, alpha)})`;
+      ctx.fill();
+    }
+
+    for (const C of USER_CONSTELLATIONS) {
+      const col = C.color || 'rgba(255,230,170,0.9)';
+      for (const [i,j] of C.edges) drawCreatorEdgeIdx(i, j, col, 1.2);
+
+      if (C.edges.length) {
+        let sx=0, sy=0, cnt=0;
+        for (const [i,j] of C.edges) {
+          let va = rotX(rotY(creator.stars3D[i], creator.yaw), creator.pitch);
+          let vb = rotX(rotY(creator.stars3D[j], creator.yaw), creator.pitch);
+          const pa = projectToScreen(va, canvas.width, canvas.height);
+          const pb = projectToScreen(vb, canvas.width, canvas.height);
+          if (!pa || !pb) continue;
+          sx += (pa.x+pb.x)*0.5; sy += (pa.y+pb.y)*0.5; cnt++;
+        }
+        if (cnt) {
+          ctx.fillStyle = (col).replace(/0\.\d+/, '1.0');
+          ctx.font = '500 13px Inter, system-ui, sans-serif';
+          ctx.fillText(C.name, sx/cnt + 6, sy/cnt - 6);
+        }
+      }
+    }
+    if (creator.tempEdges.length) {
+      for (const [i,j] of creator.tempEdges) {
+        drawCreatorEdgeIdx(i, j, 'rgba(255,230,170,0.9)', 1.3);
+      }
+    }
+
+    if (creator.picked.length > 0 && creator.hoverStar !== -1) {
+      const a = creator.picked[creator.picked.length - 1];
+      const b = creator.hoverStar;
+      drawCreatorEdgeIdx(a, b, 'rgba(255,230,170,0.6)', 1.0, [6,6]);
+    }
+
+    if (creator.hoverStar !== -1) {
+      let v = rotX(rotY(creator.stars3D[creator.hoverStar], creator.yaw), creator.pitch);
+      const p = projectToScreen(v, canvas.width, canvas.height);
+      if (p) {
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 3, 0, Math.PI*2);
+        ctx.strokeStyle = 'rgba(255,230,170,0.9)';
+        ctx.lineWidth = 1.0;
+        ctx.stroke();
+      }
+    }
+
+    requestAnimationFrame(loop);
+    return; 
+  }
+
     if (cam.auto) {
         cam.x += cam.vx;
         cam.y += cam.vy;
