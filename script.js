@@ -2,9 +2,12 @@ let currentMode = 'classic';
 
 const MODE_HINT = {
   classic: 'Classic: arrows=move, space=pause drift, S=shooting star',
-  creator: 'Creator: click stars to connect, Enter=finish, Esc=cancel',
+  creator: 'Creator: click stars to connect, Enter=finish group, Esc=cancel',
   waves:   'Waves: G=emit wave, arrows/space as classic',
 };
+
+const cam = { x: 0, y: 0, vx: 0.5, vy: 0.05, auto: true };
+
 let creator = {
   active: false,
   play: false,
@@ -19,7 +22,10 @@ let creator = {
     'rgba(255,180,210,0.95)',
     'rgba(180,255,210,0.95)'
   ],
-  nextColorIdx: 0
+  nextColorIdx: 0,
+  stars3D: [],        
+  yaw: 0,             
+  pitch: 0    
 };
 
 function projectToScreen(v, W, H) {
@@ -29,6 +35,54 @@ function projectToScreen(v, W, H) {
   const sy = H/2 - f * (v.y / v.z);
   return { x: sx, y: sy };
 }
+function setAutoSpeedFor(mode) {
+  const speeds = {
+    classic: { vx: 0.5,  vy: 0.05 },
+    waves:   { vx: 0.5,  vy: 0.05 },
+    creator: { vx: 0.1,  vy: 0.01 } 
+  };
+  const s = speeds[mode] || speeds.classic;
+  cam.vx = s.vx;
+  cam.vy = s.vy;
+}
+
+function genCreatorStars(count = 260) {
+  creator.stars3D = [];
+  for (let i = 0; i < count; i++) {
+    const u = Math.random() * 2 - 1;         
+    const phi = Math.random() * Math.PI * 2;
+    const sqrt1u = Math.sqrt(1 - u*u);       
+    const x = sqrt1u * Math.cos(phi);
+    const y = u;
+    const z = sqrt1u * Math.sin(phi);
+    creator.stars3D.push({ x, y, z, mag: 0.7 + Math.random()*1.3 });
+  }
+}
+
+function rotY(v, a){ const ca=Math.cos(a), sa=Math.sin(a); return {x: ca*v.x+sa*v.z, y:v.y, z:-sa*v.x+ca*v.z}; }
+function rotX(v, a){ const ca=Math.cos(a), sa=Math.sin(a); return {x: v.x, y: ca*v.y-sa*v.z, z: sa*v.y+ca*v.z}; }
+
+function projectToScreen(v, W, H) {
+  if (v.z <= 0) return null;                  
+  const f = 0.9 * Math.min(W, H);             
+  return { x: W/2 + f*(v.x/v.z), y: H/2 - f*(v.y/v.z) };
+}
+
+function pickCreatorStarAtScreen(mx, my) {
+  const W = canvas.width, H = canvas.height;
+  let best = -1, bestD = Infinity;
+  for (let i = 0; i < creator.stars3D.length; i++) {
+    let v = rotY(creator.stars3D[i], creator.yaw);
+    v = rotX(v, creator.pitch);
+    const p = projectToScreen(v, W, H);
+    if (!p) continue;
+    const d = Math.hypot(p.x - mx, p.y - my);
+    const extra = 6;
+    if (d < bestD && d <= (creator.pickRadius + extra)) { bestD = d; best = i; }
+  }
+  return best;
+}
+
 function setMode(mode) {
   currentMode = mode;
  
@@ -69,8 +123,8 @@ function setMode(mode) {
     creator.tempEdges = [];
     creator.hoverStar = -1; 
   
-    cam.auto = false;
-    cam.vx = 0; cam.vy = 0;
+    cam.auto = true;              
+    setAutoSpeedFor('creator');   
   }
 }
 
@@ -179,11 +233,13 @@ function spawnShootingStar(fromEdge = null, sx = null, sy = null) {
   setTimeout(() => shootingActive = false, 1200);
 }
 
-const cam = { x: 0, y: 0, vx: 0.5, vy: 0.05, auto: true };
+
 const wrap = (n, max) => {
     n %= max;
     return n < 0 ? n + max : n;
 };
+
+let shootingActive = false;
 
 function pickStarAtScreen(x, y) {
   let best = -1, bestD = Infinity;
@@ -224,34 +280,37 @@ window.addEventListener('keydown', (e) => {
     spawnShootingStar(); 
     }
 
-    if (e.key === ' ') cam.auto = !cam.auto;
+    if (e.key === ' ') {
+      cam.auto = !cam.auto;
+      if (cam.auto) setAutoSpeedFor(currentMode);
+    }
     if (e.key === '0') { cam.x = cam.y = cam.vx = cam.vy = 0; cam.auto = false; }
     
     if (currentMode === 'creator' && creator.active) {
     if (e.key === 'Enter') {
-   if (creator.tempEdges.length > 0) {
-      const color = creator.palette[creator.nextColorIdx % creator.palette.length];
-      creator.nextColorIdx++;
-      const name = prompt('Name your constellation:', 'My Constellation') || 'Unnamed';
-      USER_CONSTELLATIONS.push({ name, color, edges: [...creator.tempEdges] });
-    }
-    creator.picked = [];
-    creator.tempEdges = [];
-    creator.hoverStar = -1;
-    }
-    if (e.key === 'Escape') {
-    creator.picked = [];
-    creator.edges = [];
-    creator.hoverStar = -1;
-    }
-    if (e.key === 'Backspace') {
-    e.preventDefault();
-    if (creator.edges.length > 0) creator.edges.pop();
-    if (creator.picked.length > 1) creator.picked.pop();
-    }
-    if (e.key === 'r' || e.key === 'R') {
-    creator.play = !creator.play;  
-    }
+    if (creator.tempEdges.length > 0) {
+        const color = creator.palette[creator.nextColorIdx % creator.palette.length];
+        creator.nextColorIdx++;
+        const name = prompt('Name your constellation:', 'My Constellation') || 'Unnamed';
+        USER_CONSTELLATIONS.push({ name, color, edges: [...creator.tempEdges] });
+      }
+      creator.picked = [];
+      creator.tempEdges = [];
+      creator.hoverStar = -1;
+      }
+      if (e.key === 'Escape') {
+      creator.picked = [];
+      creator.tempEdges = [];
+      creator.hoverStar = -1;
+      }
+      if (e.key === 'Backspace') {
+      e.preventDefault();
+      if (creator.tempEdges.length > 0) creator.tempEdges.pop();
+      if (creator.picked.length > 1) creator.picked.pop();
+      }
+      if (e.key === 'r' || e.key === 'R') {
+      creator.play = !creator.play;  
+      }
   } 
 });
 
@@ -302,7 +361,7 @@ canvas.addEventListener('click', (e) => {
       const n = creator.picked.length;
       if (n > 0) {
         const prev = creator.picked[n - 1];
-        if (prev !== idx) creator.edges.push([prev, idx]);
+        if (prev !== idx) creator.tempEdges.push([prev, idx]);
       }
       if (n === 0 || creator.picked[n - 1] !== idx) creator.picked.push(idx);
     }
@@ -324,7 +383,6 @@ function drawStar(s, brightness){
     ctx.fillStyle = `rgba(255, 255, 255, ${brightness})`;
     ctx.fill();
 }
-let shootingActive = false;
 
 function loop() {
     t += 0.016;
@@ -339,8 +397,7 @@ function loop() {
 
         if (Math.abs(cam.vx) < 0.02 && Math.abs(cam.vy) < 0.02) {
             cam.auto = true;
-            cam.vx = 0.5;
-            cam.vy = 0.05;
+            setAutoSpeedFor(currentMode);
         }
     }
     ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
@@ -479,9 +536,10 @@ for (let i = 0; i < STARS.length; i++) {
         }
         
 }
-
 if (currentMode === 'creator') {
   for (const C of USER_CONSTELLATIONS) {
+    ctx.lineWidth = 1.2;
+    ctx.strokeStyle = C.color || 'rgba(255,230,170,0.9)'; 
     for (const [i, j] of C.edges) {
       const a = STARS[i], b = STARS[j];
       const ax = wrap(a.x - cam.x, canvas.width);
@@ -494,33 +552,30 @@ if (currentMode === 'creator') {
       let ddx = rxB - rxA; if (ddx > W/2) rxB -= W; else if (ddx < -W/2) rxB += W;
       let ddy = ryB - ryA; if (ddy > H/2) ryB -= H; else if (ddy < -H/2) ryB += H;
 
-      ctx.lineWidth = 1.2;
-      const grad = ctx.createLinearGradient(rxA, ryA, rxB, ryB);
-      grad.addColorStop(0.0, 'rgba(255,210,120,0.25)');
-      grad.addColorStop(0.5, 'rgba(255,230,170,0.9)');
-      grad.addColorStop(1.0, 'rgba(255,210,120,0.25)');
-      ctx.strokeStyle = grad;
       ctx.beginPath();
       ctx.moveTo(rxA, ryA);
       ctx.lineTo(rxB, ryB);
       ctx.stroke();
-    }
-    if (C.edges.length) {
-      let sx = 0, sy = 0, cnt = 0;
-      for (const [i,j] of C.edges) {
-        const a = STARS[i], b = STARS[j];
-        sx += (a.x + b.x) * 0.5; sy += (a.y + b.y) * 0.5; cnt++;
       }
-      const cx = wrap((sx/cnt) - cam.x, canvas.width);
-      const cy = wrap((sy/cnt) - cam.y, canvas.height);
-      ctx.fillStyle = 'rgba(255,220,160,0.9)';
-      ctx.font = '500 13px Inter, system-ui, sans-serif';
-      ctx.fillText(C.name, cx + 6, cy - 6);
-    }
-  }
 
-  if (creator.edges.length) {
-    for (const [i,j] of creator.edges) {
+      if (C.edges.length) {
+        let sx = 0, sy = 0, cnt = 0;
+          for (const [i,j] of C.edges) {
+            const a = STARS[i], b = STARS[j];
+            sx += (a.x + b.x) * 0.5; sy += (a.y + b.y) * 0.5; cnt++;
+          }
+        const cx = wrap((sx/cnt) - cam.x, canvas.width);
+        const cy = wrap((sy/cnt) - cam.y, canvas.height);
+        ctx.fillStyle = (C.color || 'rgba(255,230,170,0.9)').replace(/0\.\d+/, '1.0');
+        ctx.font = '500 13px Inter, system-ui, sans-serif';
+        ctx.fillText(C.name, cx + 6, cy - 6);
+        }
+     }
+
+  if (creator.tempEdges.length) {
+     ctx.lineWidth = 1.3;
+     ctx.strokeStyle = 'rgba(255,230,170,0.9)';
+     for (const [i,j] of creator.tempEdges) {
       const a = STARS[i], b = STARS[j];
       const ax = wrap(a.x - cam.x, canvas.width);
       const ay = wrap(a.y - cam.y, canvas.height);
@@ -532,8 +587,6 @@ if (currentMode === 'creator') {
       let ddx = rxB - rxA; if (ddx > W/2) rxB -= W; else if (ddx < -W/2) rxB += W;
       let ddy = ryB - ryA; if (ddy > H/2) ryB -= H; else if (ddy < -H/2) ryB += H;
 
-      ctx.lineWidth = 1.3;
-      ctx.strokeStyle = 'rgba(255,230,170,0.9)';
       ctx.beginPath();
       ctx.moveTo(rxA, ryA);
       ctx.lineTo(rxB, ryB);
