@@ -160,61 +160,6 @@ function wantedCreatorStars() {
 function rotY(v, a){ const ca=Math.cos(a), sa=Math.sin(a); return {x: ca*v.x+sa*v.z, y:v.y, z:-sa*v.x+ca*v.z}; }
 function rotX(v, a){ const ca=Math.cos(a), sa=Math.sin(a); return {x: v.x, y: ca*v.y-sa*v.z, z: sa*v.y+ca*v.z}; }
 
-
-
-function drawAutoLinks3D(k = 2, maxAngle = Math.PI/18) { 
-  const W = canvas.width, H = canvas.height;
-  const drawn = new Set(); 
-
-  for (let i = 0; i < creator.stars3D.length; i++) {
-    const a = creator.stars3D[i];
-
-    let va = creatorViewOf(a, creator.yaw, creator.pitch);
-    if (va.z <= 0) continue; 
-    const pa = projectToScreen(va, W, H);
-    if (!pa) continue;
-
-    const neigh = [];
-    for (let j = 0; j < creator.stars3D.length; j++) {
-      if (j === i) continue;
-      const b = creator.stars3D[j];
-      const dot = a.x*b.x + a.y*b.y + a.z*b.z;        
-      const ang = Math.acos(Math.max(-1, Math.min(1, dot)));
-      if (ang <= maxAngle) neigh.push({ j, ang });
-    }
-    neigh.sort((u, v) => u.ang - v.ang);
-    const top = neigh.slice(0, k);
-
-    for (const { j, ang } of top) {
-      const key = i < j ? `${i}-${j}` : `${j}-${i}`;
-      if (drawn.has(key)) continue;
-      drawn.add(key);
-
-      let vb = creatorViewOf(creator.stars3D[j], creator.yaw, creator.pitch);
-      if (vb.z <= 0) continue;
-      const pb = projectToScreen(vb, W, H);
-      if (!pb) continue;
-
-      const aLine = Math.max(0.05, 1 - (ang / maxAngle));
-      const depthFade = Math.min(1, 0.6 / ((va.z + vb.z) * 0.5)); 
-      const alphaMid = 0.28 * aLine * depthFade;  
-      const alphaEnds = 0.10 * aLine * depthFade;
-      ctx.lineWidth = 0.3 + 0.7 * aLine;
-
-      const grad = ctx.createLinearGradient(pa.x, pa.y, pb.x, pb.y);
-      grad.addColorStop(0.0, `rgba(255,255,255,${0.25 * aLine})`);
-      grad.addColorStop(0.5, `rgba(255,255,255,${0.60 * aLine})`);
-      grad.addColorStop(1.0, `rgba(255,255,255,${0.25 * aLine})`);
-      ctx.strokeStyle = grad;
-
-      ctx.beginPath();
-      ctx.moveTo(pa.x, pa.y);
-      ctx.lineTo(pb.x, pb.y);
-      ctx.stroke();
-    }
-  }
-}
-
 function projectToScreen(v, W, H) {
   if (v.z <= 0) return null;                  
   const f = 0.9 * Math.min(W, H);             
@@ -293,6 +238,7 @@ function setMode(mode) {
 const canvas = document.getElementById('sky');
 const ctx = canvas.getContext('2d');
 let proj = null; 
+
 function resize() {
 canvas.width = window.innerWidth;
 canvas.height = window.innerHeight;
@@ -581,7 +527,7 @@ function loop() {
 
     const flick = 0.5 + 0.5 * Math.sin((1.35 * s0.twSpeed) * t + s0.phase);
 
-    const baseAlpha = Math.max(0.18, 0.28 + 0.42 / depth);
+    let baseAlpha = Math.max(0.18, 0.28 + 0.42 / depth);
     baseAlpha += (s0.aBoost || 0); 
     const alpha = Math.min(0.88, baseAlpha * (0.55 + 0.65 * flick));
 
@@ -602,11 +548,6 @@ function loop() {
     ctx.fillStyle = `rgba(255,255,255,${alpha})`;
     ctx.fill();
   }
-   
-    if (frame % 3 === 0) {            
-    drawAutoLinks3D(2, Math.PI/18);
-    }
- 
 
    for (const C of USER_CONSTELLATIONS) {
   const col = C.color || 'rgba(255,230,170,0.9)';
@@ -633,28 +574,28 @@ function loop() {
 }
 
     if (creator.tempEdges.length) {
-      for (const [i,j] of creator.tempEdges) {
-        drawCreatorEdgeIdx(i, j, 'rgba(255,230,170,0.9)', 1.3);
-      }
+    for (const [i,j] of creator.tempEdges) {
+      drawCreatorEdgeIdxCached(i, j, 'rgba(255,230,170,0.9)', 1.3);
     }
+  }
+
 
     if (creator.picked.length > 0 && creator.hoverStar !== -1) {
       const a = creator.picked[creator.picked.length - 1];
       const b = creator.hoverStar;
-      drawCreatorEdgeIdx(a, b, 'rgba(255,230,170,0.6)', 1.0, [6,6]);
+      drawCreatorEdgeIdxCached(a, b, 'rgba(255,230,170,0.6)', 1.0, [6,6]);
     }
 
-    if (creator.hoverStar !== -1) {
-      let v = rotX(rotY(creator.stars3D[creator.hoverStar], creator.yaw), creator.pitch);
-      const p = projectToScreen(v, canvas.width, canvas.height);
-      if (p) {
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, 3, 0, Math.PI*2);
-        ctx.strokeStyle = 'rgba(255,230,170,0.9)';
-        ctx.lineWidth = 1.0;
-        ctx.stroke();
-      }
+   if (creator.hoverStar !== -1) {
+    const C = proj[creator.hoverStar];
+    if (C && C.p) {
+      ctx.beginPath();
+      ctx.arc(C.p.x, C.p.y, 3, 0, Math.PI*2);
+      ctx.strokeStyle = 'rgba(255,230,170,0.9)';
+      ctx.lineWidth = 1.0;
+      ctx.stroke();
     }
+  }
 
     requestAnimationFrame(loop);
     return; 
