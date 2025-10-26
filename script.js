@@ -261,6 +261,55 @@ const MAX_SPEED = 0.5;
 const STARS = [];
 let t = 0;
 let frame = 0;
+const WAVES = []; 
+let waveAutoTimer = 0;
+let waveAutoDelay = 6 + Math.random()*6; 
+
+function emitWave(x, y, amp = 10, width = 70, life = 2.8) {
+  WAVES.push({ x, y, r: 0, life, amp, width });
+}
+
+function waveOffsetAt(x, y) {
+  let ox = 0, oy = 0;
+  for (const w of WAVES) {
+    const dx = x - wrap(w.x - cam.x, canvas.width);
+    const dy = y - wrap(w.y - cam.y, canvas.height);
+    const d = Math.hypot(dx, dy) + 1e-6;
+
+    const band = Math.abs(d - w.r);
+    const envelope = Math.exp(-band / w.width) * Math.max(0, w.life);
+    const push = (w.amp * envelope);
+
+    ox += (dx / d) * push * 0.35;
+    oy += (dy / d) * push * 0.35;
+
+    const phase = Math.sin((d - w.r) * 0.12);
+    ox += (dx / d) * phase * push * 0.15;
+    oy += (dy / d) * phase * push * 0.15;
+  }
+  return { x: ox, y: oy };
+}
+
+function updateAndRenderWaves() {
+  for (let i = WAVES.length - 1; i >= 0; i--) {
+    const w = WAVES[i];
+    w.r += 220 * 0.016;       
+    w.life -= 0.016 * 0.6;     
+    if (w.life <= 0) WAVES.splice(i, 1);
+  }
+
+  for (const w of WAVES) {
+    const rx = wrap(w.x - cam.x, canvas.width);
+    const ry = wrap(w.y - cam.y, canvas.height);
+    const alpha = Math.max(0, Math.min(0.45, w.life * 0.5));
+    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = `rgba(180,230,255,${alpha})`;
+    ctx.beginPath();
+    ctx.arc(rx, ry, w.r, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+}
+
 const mouse = { x: -9999, y: -9999 };
 const R = 85;
 
@@ -415,6 +464,12 @@ window.addEventListener('keydown', (e) => {
     }
     if (e.key === 's' || e.key === 'S') {
     spawnShootingStar(); 
+    }
+
+    if (e.key === 'g' || e.key === 'G') {
+    const wx = cam.x + canvas.width  / 2;
+    const wy = cam.y + canvas.height / 2;
+    emitWave(wx, wy);
     }
 
     if (e.key === ' ') {
