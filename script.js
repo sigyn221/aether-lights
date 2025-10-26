@@ -25,7 +25,11 @@ let creator = {
   nextColorIdx: 0,
   stars3D: [],        
   yaw: 0,             
-  pitch: 0    
+  pitch: 0,  
+  auto: true,          
+  autoYaw: 0.00018,     
+  autoPitchAmp: 0.008,
+  autoPitchFreq: 0.18
 };
 
 function pickCreatorStarAtScreen(mx, my) {
@@ -43,13 +47,15 @@ function pickCreatorStarAtScreen(mx, my) {
   return best;
 }
 
-function drawCreatorEdgeIdx(i, j, color, lw=1.3, dash=null) {
+function drawCreatorEdgeIdx(i, j, color, lw=0.9, dash=null) {
   const W = canvas.width, H = canvas.height;
   let va = rotX(rotY(creator.stars3D[i], creator.yaw), creator.pitch);
   let vb = rotX(rotY(creator.stars3D[j], creator.yaw), creator.pitch);
   const pa = projectToScreen(va, W, H);
   const pb = projectToScreen(vb, W, H);
   if (!pa || !pb) return;
+  const prevGA = ctx.globalAlpha;
+  if (currentMode === 'creator') ctx.globalAlpha = 0.55;
   if (dash) ctx.setLineDash(dash);
   ctx.lineWidth = lw;
   ctx.strokeStyle = color;
@@ -58,6 +64,8 @@ function drawCreatorEdgeIdx(i, j, color, lw=1.3, dash=null) {
   ctx.lineTo(pb.x, pb.y);
   ctx.stroke();
   if (dash) ctx.setLineDash([]);
+
+  ctx.globalAlpha = prevGA;
 }
 
 function setAutoSpeedFor(mode) {
@@ -74,18 +82,88 @@ function setAutoSpeedFor(mode) {
 function genCreatorStars(count = 260) {
   creator.stars3D = [];
   for (let i = 0; i < count; i++) {
-    const u = Math.random() * 2 - 1;         
+    const u = Math.random() * 2 - 1;
     const phi = Math.random() * Math.PI * 2;
-    const sqrt1u = Math.sqrt(1 - u*u);       
+    const sqrt1u = Math.sqrt(1 - u*u);
     const x = sqrt1u * Math.cos(phi);
     const y = u;
     const z = sqrt1u * Math.sin(phi);
-    creator.stars3D.push({ x, y, z, mag: 0.7 + Math.random()*1.3 });
+
+    const isGiant = Math.random() < 0.05;
+    const mag = isGiant ? 0.9 + Math.random()*0.6 : 0.35 + Math.random()*0.55;
+
+    creator.stars3D.push({
+      x, y, z,
+      mag,
+      phase: Math.random() * Math.PI * 2,
+      twSpeed: 0.8 + Math.random()*0.8 
+    });
   }
+}
+
+
+function wantedCreatorStars() {
+  const W = canvas.width, H = canvas.height;
+  const classicN = Math.floor(0.00012 * W * H) + 80; 
+  const screenComp = 6.0; 
+  return Math.floor(classicN * screenComp);
 }
 
 function rotY(v, a){ const ca=Math.cos(a), sa=Math.sin(a); return {x: ca*v.x+sa*v.z, y:v.y, z:-sa*v.x+ca*v.z}; }
 function rotX(v, a){ const ca=Math.cos(a), sa=Math.sin(a); return {x: v.x, y: ca*v.y-sa*v.z, z: sa*v.y+ca*v.z}; }
+
+function drawAutoLinks3D(k = 2, maxAngle = Math.PI/18) { 
+  const W = canvas.width, H = canvas.height;
+  const drawn = new Set(); 
+
+  for (let i = 0; i < creator.stars3D.length; i++) {
+    const a = creator.stars3D[i];
+
+    let va = rotX(rotY(a, creator.yaw), creator.pitch);
+    if (va.z <= 0) continue; 
+    const pa = projectToScreen(va, W, H);
+    if (!pa) continue;
+
+    const neigh = [];
+    for (let j = 0; j < creator.stars3D.length; j++) {
+      if (j === i) continue;
+      const b = creator.stars3D[j];
+      const dot = a.x*b.x + a.y*b.y + a.z*b.z;        
+      const ang = Math.acos(Math.max(-1, Math.min(1, dot)));
+      if (ang <= maxAngle) neigh.push({ j, ang });
+    }
+    neigh.sort((u, v) => u.ang - v.ang);
+    const top = neigh.slice(0, k);
+
+    for (const { j, ang } of top) {
+      const key = i < j ? `${i}-${j}` : `${j}-${i}`;
+      if (drawn.has(key)) continue;
+      drawn.add(key);
+
+      let vb = rotX(rotY(creator.stars3D[j], creator.yaw), creator.pitch);
+      if (vb.z <= 0) continue;
+      const pb = projectToScreen(vb, W, H);
+      if (!pb) continue;
+
+      const aLine = Math.max(0.05, 1 - (ang / maxAngle));
+      const depthFade = Math.min(1, 0.6 / ((va.z + vb.z) * 0.5)); 
+      const alphaMid = 0.28 * aLine * depthFade;  
+      const alphaEnds = 0.10 * aLine * depthFade;
+      ctx.lineWidth = 0.3 + 0.7 * aLine;
+
+      const grad = ctx.createLinearGradient(pa.x, pa.y, pb.x, pb.y);
+      grad.addColorStop(0.0, `rgba(255,255,255,${0.25 * aLine})`);
+      grad.addColorStop(0.5, `rgba(255,255,255,${0.60 * aLine})`);
+      grad.addColorStop(1.0, `rgba(255,255,255,${0.25 * aLine})`);
+      ctx.strokeStyle = grad;
+
+      ctx.beginPath();
+      ctx.moveTo(pa.x, pa.y);
+      ctx.lineTo(pb.x, pb.y);
+      ctx.stroke();
+    }
+  }
+}
 
 function projectToScreen(v, W, H) {
   if (v.z <= 0) return null;                  
@@ -132,9 +210,8 @@ function setMode(mode) {
     creator.picked = [];
     creator.tempEdges = [];
     creator.hoverStar = -1; 
-    if (creator.stars3D.length === 0) genCreatorStars(260);
-    cam.auto = true;              
-    cam.auto = false;
+    genCreatorStars(wantedCreatorStars());              
+    cam.auto = true;
     cam.vx = 0; 
     cam.vy = 0; 
   }
@@ -170,8 +247,17 @@ canvas.width = window.innerWidth;
 canvas.height = window.innerHeight;
 }
 resize();
-window.addEventListener('resize', () => {resize();
-window.scrollTo(0,0);}); 
+if (currentMode === 'creator' && creator.active) {
+  genCreatorStars(wantedCreatorStars());
+}
+
+window.addEventListener('resize', () => {
+  resize();
+  if (currentMode === 'creator' && creator.active) {
+    genCreatorStars(wantedCreatorStars());
+  }
+  window.scrollTo(0,0);
+}); 
 
 const N = Math.floor(0.00012*window.innerWidth*window.innerHeight) + 80;
 const MAX_SPEED = 0.5;
@@ -274,16 +360,19 @@ window.addEventListener('keydown', (e) => {
     const kick = (currentMode === 'creator') ? 0.15 : 0.6; 
     if (currentMode === 'creator' && creator.active) {
       const STEP = 0.02; 
-      if (e.key === 'ArrowLeft')  creator.yaw   -= STEP;
-      if (e.key === 'ArrowRight') creator.yaw   += STEP;
-      if (e.key === 'ArrowUp')    creator.pitch -= STEP;
-      if (e.key === 'ArrowDown')  creator.pitch += STEP;
+      if (e.key === 'ArrowLeft')  {creator.yaw   -= STEP; creator.auto = false;}
+      if (e.key === 'ArrowRight') {creator.yaw   += STEP; creator.auto = false;}
+      if (e.key === 'ArrowUp')    {creator.pitch -= STEP; creator.auto = false;}
+      if (e.key === 'ArrowDown')  {creator.pitch += STEP; creator.auto = false;}
 
       const LIM = Math.PI/2 * 0.9;
       if (creator.pitch >  LIM) creator.pitch =  LIM;
       if (creator.pitch < -LIM) creator.pitch = -LIM;
 
-      if (e.key === ' ') creator.play = !creator.play;
+      if (e.key === ' ') { 
+      e.preventDefault();
+      creator.auto = !creator.auto;
+      }
 
       if (e.key === 'Enter') {
       if (creator.tempEdges.length > 0) {
@@ -367,7 +456,7 @@ canvas.addEventListener('mousemove', (e) => {
   mouse.x = e.clientX - rect.left;
   mouse.y = e.clientY - rect.top;
   if (currentMode === 'creator' && creator.active) {
-    creator.hoverStar = pickStarAtScreen(mouse.x, mouse.y);
+    creator.hoverStar = pickCreatorStarAtScreen(mouse.x, mouse.y);
   }
 });
 
@@ -412,10 +501,14 @@ function drawStar(s, brightness){
 function loop() {
     t += 0.016;
     if (currentMode === 'creator' && creator.active) {
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.25)'; 
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    if (creator.play) creator.yaw += 0.002;
+    if (creator.auto) {
+    creator.yaw += creator.autoYaw;
+    const targetPitch = creator.autoPitchAmp * Math.sin(t * 0.25);
+    creator.pitch += (targetPitch - creator.pitch) * 0.02;
+   }
 
     for (const s0 of creator.stars3D) {
       let v = rotY(s0, creator.yaw);
@@ -423,11 +516,16 @@ function loop() {
       const p = projectToScreen(v, canvas.width, canvas.height);
       if (!p) continue;
 
-      const depth = Math.max(0.001, v.z);                
-      const size  = Math.max(1.0, s0.mag * (1.2 + 0.6/depth));
-      const alpha = Math.min(1, 0.55 + 0.8/depth);
+      const depth = Math.max(0.001, v.z);
 
-      const rHalo = size * 2.2;
+      const flick = 0.6 + 0.4 * Math.sin((1.2 * s0.twSpeed) * t + s0.phase);
+
+      const sizeBase  = Math.max(0.6, s0.mag * (0.8 + 0.25 / depth));
+      const size = sizeBase * (0.85 + 0.30 * flick); 
+      const baseAlpha = Math.min(1, 0.45 + 0.55 / depth);
+      const alpha = Math.min(1, baseAlpha * (0.75 + 0.5 * flick)); 
+
+      const rHalo = size * 1.8;
       const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, rHalo);
       g.addColorStop(0, `rgba(255,255,255,${alpha * 0.6})`);
       g.addColorStop(1, `rgba(255,255,255,0)`);
@@ -440,7 +538,8 @@ function loop() {
       ctx.arc(p.x, p.y, size, 0, Math.PI*2);
       ctx.fillStyle = `rgba(255,255,255,${Math.min(1, alpha)})`;
       ctx.fill();
-    }
+    }     
+    drawAutoLinks3D(2, Math.PI/18); 
 
     for (const C of USER_CONSTELLATIONS) {
       const col = C.color || 'rgba(255,230,170,0.9)';
