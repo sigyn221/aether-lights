@@ -36,8 +36,7 @@ function pickCreatorStarAtScreen(mx, my) {
   const W = canvas.width, H = canvas.height;
   let best = -1, bestD = Infinity;
   for (let i = 0; i < creator.stars3D.length; i++) {
-    let v = rotY(creator.stars3D[i], creator.yaw);
-    v = rotX(v, creator.pitch);
+    let v = creatorViewOf(creator.stars3D[i], creator.yaw, creator.pitch);
     const p = projectToScreen(v, W, H);
     if (!p) continue;
     const d = Math.hypot(p.x - mx, p.y - my);
@@ -49,8 +48,8 @@ function pickCreatorStarAtScreen(mx, my) {
 
 function drawCreatorEdgeIdx(i, j, color, lw=0.9, dash=null) {
   const W = canvas.width, H = canvas.height;
-  let va = rotX(rotY(creator.stars3D[i], creator.yaw), creator.pitch);
-  let vb = rotX(rotY(creator.stars3D[j], creator.yaw), creator.pitch);
+  let va = creatorViewOf(creator.stars3D[i], creator.yaw, creator.pitch);
+  let vb = creatorViewOf(creator.stars3D[j], creator.yaw, creator.pitch);
   const pa = projectToScreen(va, W, H);
   const pb = projectToScreen(vb, W, H);
   if (!pa || !pb) return;
@@ -67,6 +66,25 @@ function drawCreatorEdgeIdx(i, j, color, lw=0.9, dash=null) {
 
   ctx.globalAlpha = prevGA;
 }
+function drawCreatorEdgeIdxCached(i, j, color, lw=0.9, dash=null) {
+  if (!proj) return;
+  const A = proj[i], B = proj[j];
+  if (!A || !B || !A.p || !B.p) return;
+
+  const pa = A.p, pb = B.p;
+
+  const prevGA = ctx.globalAlpha;
+  if (currentMode === 'creator') ctx.globalAlpha = 0.55;
+  if (dash) ctx.setLineDash(dash);
+  ctx.lineWidth = lw;
+  ctx.strokeStyle = color;
+  ctx.beginPath();
+  ctx.moveTo(pa.x, pa.y);
+  ctx.lineTo(pb.x, pb.y);
+  ctx.stroke();
+  if (dash) ctx.setLineDash([]);
+  ctx.globalAlpha = prevGA;
+}
 
 function setAutoSpeedFor(mode) {
   const speeds = {
@@ -79,38 +97,70 @@ function setAutoSpeedFor(mode) {
   cam.vy = s.vy;
 }
 
-function genCreatorStars(count = 260) {
-  creator.stars3D = [];
-  for (let i = 0; i < count; i++) {
-    const u = Math.random() * 2 - 1;
-    const phi = Math.random() * Math.PI * 2;
-    const sqrt1u = Math.sqrt(1 - u*u);
-    const x = sqrt1u * Math.cos(phi);
-    const y = u;
-    const z = sqrt1u * Math.sin(phi);
+const CREATOR_LAYERS = [
+  { id: 0, r: 1.40, twBoost: -0.10, aBoost: -0.06 }, 
+  { id: 1, r: 1.00, twBoost:  0.00, aBoost:  0.00 }, 
+  { id: 2, r: 0.70, twBoost: +0.12, aBoost: +0.08 }, 
+];
 
-    const isGiant = Math.random() < 0.05;
-    const mag = isGiant ? 0.9 + Math.random()*0.6 : 0.35 + Math.random()*0.55;
-
-    creator.stars3D.push({
-      x, y, z,
-      mag,
-      phase: Math.random() * Math.PI * 2,
-      twSpeed: 0.8 + Math.random()*0.8 
-    });
-  }
+function creatorViewOf(star, yaw, pitch) {
+  const R = star.layerR || 1.0;
+  const base = { x: star.x * R, y: star.y * R, z: star.z * R };
+  return rotX(rotY(base, yaw), pitch);
 }
 
+function genCreatorStars(count = 260) {
+  creator.stars3D = [];
+  const pFar = 0.30, pMid = 0.45;
+  const nFar = Math.round(count * pFar);
+  const nMid = Math.round(count * pMid);
+  const nNear = count - nFar - nMid;
+
+  const plan = [
+    { n: nFar,  conf: CREATOR_LAYERS[0] },
+    { n: nMid,  conf: CREATOR_LAYERS[1] },
+    { n: nNear, conf: CREATOR_LAYERS[2] },
+  ];
+
+  for (const { n, conf } of plan) {
+    for (let i = 0; i < n; i++) {
+      const u = Math.random() * 2 - 1;
+      const phi = Math.random() * Math.PI * 2;
+      const sqrt1u = Math.sqrt(1 - u*u);
+      const x = sqrt1u * Math.cos(phi);
+      const y = u;
+      const z = sqrt1u * Math.sin(phi);
+
+      const isGiant = Math.random() < 0.05;
+      const mag = isGiant ? 0.9 + Math.random()*0.6 : 0.35 + Math.random()*0.55;
+
+      const twSpeed = (0.8 + Math.random()*0.8) * (1.0 + conf.twBoost); 
+
+      creator.stars3D.push({
+        x, y, z,
+        mag,
+        layerId: conf.id,
+        layerR:  conf.r,
+        aBoost:  conf.aBoost, 
+        phase: Math.random() * Math.PI * 2,
+        twSpeed
+      });
+    }
+  }
+}
 
 function wantedCreatorStars() {
   const W = canvas.width, H = canvas.height;
   const classicN = Math.floor(0.00012 * W * H) + 80; 
-  const screenComp = 6.0; 
-  return Math.floor(classicN * screenComp);
+  const screenComp = 2.0; 
+  const cap = 900;
+  return Math.min(cap, Math.floor(classicN * screenComp));
 }
 
 function rotY(v, a){ const ca=Math.cos(a), sa=Math.sin(a); return {x: ca*v.x+sa*v.z, y:v.y, z:-sa*v.x+ca*v.z}; }
 function rotX(v, a){ const ca=Math.cos(a), sa=Math.sin(a); return {x: v.x, y: ca*v.y-sa*v.z, z: sa*v.y+ca*v.z}; }
+
+
 
 function drawAutoLinks3D(k = 2, maxAngle = Math.PI/18) { 
   const W = canvas.width, H = canvas.height;
@@ -119,7 +169,7 @@ function drawAutoLinks3D(k = 2, maxAngle = Math.PI/18) {
   for (let i = 0; i < creator.stars3D.length; i++) {
     const a = creator.stars3D[i];
 
-    let va = rotX(rotY(a, creator.yaw), creator.pitch);
+    let va = creatorViewOf(a, creator.yaw, creator.pitch);
     if (va.z <= 0) continue; 
     const pa = projectToScreen(va, W, H);
     if (!pa) continue;
@@ -140,7 +190,7 @@ function drawAutoLinks3D(k = 2, maxAngle = Math.PI/18) {
       if (drawn.has(key)) continue;
       drawn.add(key);
 
-      let vb = rotX(rotY(creator.stars3D[j], creator.yaw), creator.pitch);
+      let vb = creatorViewOf(creator.stars3D[j], creator.yaw, creator.pitch);
       if (vb.z <= 0) continue;
       const pb = projectToScreen(vb, W, H);
       if (!pb) continue;
@@ -242,6 +292,7 @@ function setMode(mode) {
 
 const canvas = document.getElementById('sky');
 const ctx = canvas.getContext('2d');
+let proj = null; 
 function resize() {
 canvas.width = window.innerWidth;
 canvas.height = window.innerHeight;
@@ -263,6 +314,7 @@ const N = Math.floor(0.00012*window.innerWidth*window.innerHeight) + 80;
 const MAX_SPEED = 0.5;
 const STARS = [];
 let t = 0;
+let frame = 0;
 const mouse = { x: -9999, y: -9999 };
 const R = 85;
 
@@ -500,9 +552,17 @@ function drawStar(s, brightness){
 
 function loop() {
     t += 0.016;
+    frame++;
     if (currentMode === 'creator' && creator.active) {
     ctx.fillStyle = 'rgba(0, 0, 0, 0.25)'; 
     ctx.fillRect(0, 0, canvas.width, canvas.height);
+    const W = canvas.width, H = canvas.height;
+    proj = new Array(creator.stars3D.length);
+    for (let i = 0; i < creator.stars3D.length; i++) {
+      const v = creatorViewOf(creator.stars3D[i], creator.yaw, creator.pitch);
+      const p = projectToScreen(v, W, H);
+      proj[i] = { v, p }; 
+    }
 
     if (creator.auto) {
     creator.yaw += creator.autoYaw;
@@ -510,58 +570,68 @@ function loop() {
     creator.pitch += (targetPitch - creator.pitch) * 0.02;
    }
 
-    for (const s0 of creator.stars3D) {
-      let v = rotY(s0, creator.yaw);
-      v = rotX(v, creator.pitch);
-      const p = projectToScreen(v, canvas.width, canvas.height);
-      if (!p) continue;
+  for (let i = 0; i < creator.stars3D.length; i++) {
+    const s0 = creator.stars3D[i];
+    const cached = proj[i];
+    const v = cached.v;
+    const p = cached.p;
+    if (!p) continue;
 
-      const depth = Math.max(0.001, v.z);
+    const depth = Math.max(0.001, v.z);
 
-      const flick = 0.6 + 0.4 * Math.sin((1.2 * s0.twSpeed) * t + s0.phase);
+    const flick = 0.5 + 0.5 * Math.sin((1.35 * s0.twSpeed) * t + s0.phase);
 
-      const sizeBase  = Math.max(0.6, s0.mag * (0.8 + 0.25 / depth));
-      const size = sizeBase * (0.85 + 0.30 * flick); 
-      const baseAlpha = Math.min(1, 0.45 + 0.55 / depth);
-      const alpha = Math.min(1, baseAlpha * (0.75 + 0.5 * flick)); 
+    const baseAlpha = Math.max(0.18, 0.28 + 0.42 / depth);
+    baseAlpha += (s0.aBoost || 0); 
+    const alpha = Math.min(0.88, baseAlpha * (0.55 + 0.65 * flick));
 
-      const rHalo = size * 1.8;
-      const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, rHalo);
-      g.addColorStop(0, `rgba(255,255,255,${alpha * 0.6})`);
-      g.addColorStop(1, `rgba(255,255,255,0)`);
-      ctx.fillStyle = g;
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, rHalo, 0, Math.PI*2);
-      ctx.fill();
+    const sizeBase = Math.max(0.6, s0.mag * (0.75 + 0.22 / depth));
+    const size = sizeBase * (0.80 + 0.55 * flick);
 
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, size, 0, Math.PI*2);
-      ctx.fillStyle = `rgba(255,255,255,${Math.min(1, alpha)})`;
-      ctx.fill();
-    }     
-    drawAutoLinks3D(2, Math.PI/18); 
+    const rHalo = size * 1.8;
+    const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, rHalo);
+    g.addColorStop(0, `rgba(255,255,255,${alpha * 0.55})`);
+    g.addColorStop(1, `rgba(255,255,255,0)`);
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, rHalo, 0, Math.PI*2);
+    ctx.fill();
 
-    for (const C of USER_CONSTELLATIONS) {
-      const col = C.color || 'rgba(255,230,170,0.9)';
-      for (const [i,j] of C.edges) drawCreatorEdgeIdx(i, j, col, 1.2);
-
-      if (C.edges.length) {
-        let sx=0, sy=0, cnt=0;
-        for (const [i,j] of C.edges) {
-          let va = rotX(rotY(creator.stars3D[i], creator.yaw), creator.pitch);
-          let vb = rotX(rotY(creator.stars3D[j], creator.yaw), creator.pitch);
-          const pa = projectToScreen(va, canvas.width, canvas.height);
-          const pb = projectToScreen(vb, canvas.width, canvas.height);
-          if (!pa || !pb) continue;
-          sx += (pa.x+pb.x)*0.5; sy += (pa.y+pb.y)*0.5; cnt++;
-        }
-        if (cnt) {
-          ctx.fillStyle = (col).replace(/0\.\d+/, '1.0');
-          ctx.font = '500 13px Inter, system-ui, sans-serif';
-          ctx.fillText(C.name, sx/cnt + 6, sy/cnt - 6);
-        }
-      }
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, size, 0, Math.PI*2);
+    ctx.fillStyle = `rgba(255,255,255,${alpha})`;
+    ctx.fill();
+  }
+   
+    if (frame % 3 === 0) {            
+    drawAutoLinks3D(2, Math.PI/18);
     }
+ 
+
+   for (const C of USER_CONSTELLATIONS) {
+  const col = C.color || 'rgba(255,230,170,0.9)';
+
+  for (const [i, j] of C.edges) {
+    drawCreatorEdgeIdxCached(i, j, col, 1.2);
+  }
+
+  if (C.edges.length) {
+    let sx = 0, sy = 0, cnt = 0;
+    for (const [i, j] of C.edges) {
+      const Ai = proj[i], Bj = proj[j];
+      if (!Ai || !Bj || !Ai.p || !Bj.p) continue;
+      sx += (Ai.p.x + Bj.p.x) * 0.5;
+      sy += (Ai.p.y + Bj.p.y) * 0.5;
+      cnt++;
+    }
+    if (cnt) {
+      ctx.fillStyle = (col).replace(/0\.\d+/, '1.0');
+      ctx.font = '500 13px Inter, system-ui, sans-serif';
+      ctx.fillText(C.name, sx/cnt + 6, sy/cnt - 6);
+    }
+  }
+}
+
     if (creator.tempEdges.length) {
       for (const [i,j] of creator.tempEdges) {
         drawCreatorEdgeIdx(i, j, 'rgba(255,230,170,0.9)', 1.3);
