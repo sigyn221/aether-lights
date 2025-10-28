@@ -197,8 +197,15 @@ function setMode(mode) {
   creator.edges = [];
   creator.hoverStar = -1;
   cam.auto = true;
-  setAutoSpeedFor('classic');
+  setAutoSpeedFor(mode);
   }
+
+  if (mode === 'waves') {
+  WAVES.length = 0;
+  waveAutoTimer = 0;
+  waveAutoDelay = 6 + Math.random() * 6;
+  }
+
   if (mode === 'creator') {
     creator.active = true;
     creator.play = false;
@@ -265,6 +272,18 @@ const WAVES = [];
 let waveAutoTimer = 0;
 let waveAutoDelay = 6 + Math.random()*6; 
 
+const WAVECFG = {
+  amp: 12,        
+  width: 80,      
+  life: 3.0,      
+  auto: true,     
+  longpressMs: 220, 
+};
+
+let wavePressing = false;
+let wavePressStart = 0;
+let waveLastEmitT = 0;
+
 function emitWave(x, y, amp = 10, width = 70, life = 2.8) {
   WAVES.push({ x, y, r: 0, life, amp, width });
 }
@@ -313,15 +332,11 @@ function updateAndRenderWaves() {
 const mouse = { x: -9999, y: -9999 };
 const R = 85;
 
-const SHOOTERS = [];
-const SHOOT_SPEED = 8;           
-const SHOOT_TTL = 1.2;           
-const LONGPRESS_MS = 350;        
+const SHOOTERS = [];       
 let spawnTimer = 0;              
 let spawnDelay = Math.random() * 15 + 15; 
 
 const USER_CONSTELLATIONS = []; 
-
 
 function spawnShootingStar(fromEdge = null, sx = null, sy = null) {
   if (shootingActive) return; 
@@ -466,10 +481,28 @@ window.addEventListener('keydown', (e) => {
     spawnShootingStar(); 
     }
 
-    if (e.key === 'g' || e.key === 'G') {
-    const wx = cam.x + canvas.width  / 2;
-    const wy = cam.y + canvas.height / 2;
-    emitWave(wx, wy);
+    if (currentMode === 'waves') {
+      if (e.key === 'g' || e.key === 'G') {
+        const wx = cam.x + canvas.width  / 2;
+        const wy = cam.y + canvas.height / 2;
+        emitWave(wx, wy, WAVECFG.amp * 1.2, WAVECFG.width, WAVECFG.life);
+      }
+      if (e.key === 'a' || e.key === 'A') {
+        WAVECFG.auto = !WAVECFG.auto;
+        const hud = document.getElementById('hud');
+        const txt = document.getElementById('hud-text');
+        if (hud && txt) {
+          txt.textContent = WAVECFG.auto ? 'Waves: auto=ON' : 'Waves: auto=OFF';
+          hud.hidden = false;
+          clearTimeout(hud._t);
+          hud._t = setTimeout(()=>{ hud.hidden = true; }, 1500);
+        }
+      }
+      if (e.key === '[') { WAVECFG.amp = Math.max(2, WAVECFG.amp - 1); }
+      if (e.key === ']') { WAVECFG.amp = Math.min(40, WAVECFG.amp + 1); }
+
+      if (e.key === ';') { WAVECFG.width = Math.max(20, WAVECFG.width - 5); }
+      if (e.key === "'") { WAVECFG.width = Math.min(200, WAVECFG.width + 5); }
     }
 
     if (e.key === ' ') {
@@ -479,6 +512,42 @@ window.addEventListener('keydown', (e) => {
     if (e.key === '0') { cam.x = cam.y = cam.vx = cam.vy = 0; cam.auto = false; }
     
    
+});
+canvas.addEventListener('mousedown', (e) => {
+  if (currentMode !== 'waves') return;
+  const rect = canvas.getBoundingClientRect();
+  const sx = e.clientX - rect.left;
+  const sy = e.clientY - rect.top;
+
+  const wx = cam.x + sx;
+  const wy = cam.y + sy;
+  emitWave(wx, wy, WAVECFG.amp, WAVECFG.width, WAVECFG.life);
+
+  wavePressing = true;
+  wavePressStart = performance.now();
+  waveLastEmitT = wavePressStart;
+});
+
+canvas.addEventListener('mouseup', () => {
+  if (currentMode !== 'waves') return;
+  wavePressing = false;
+});
+
+canvas.addEventListener('mousemove', (e) => {
+  if (currentMode !== 'waves' || !wavePressing) return;
+  const now = performance.now();
+  const pressedFor = now - wavePressStart;
+  if (pressedFor < WAVECFG.longpressMs) return;
+
+  if (now - waveLastEmitT < 60) return; 
+  waveLastEmitT = now;
+
+  const rect = canvas.getBoundingClientRect();
+  const sx = e.clientX - rect.left;
+  const sy = e.clientY - rect.top;
+  const wx = cam.x + sx;
+  const wy = cam.y + sy;
+  emitWave(wx, wy, WAVECFG.amp * 0.8, WAVECFG.width * 0.9, WAVECFG.life * 0.9);
 });
 
 const rand = (a, b) => a + Math.random() * (b - a);
@@ -554,6 +623,12 @@ function drawStar(s, brightness){
 function loop() {
     t += 0.016;
     frame++;
+    const bg = (currentMode === 'waves') ? 0.30 + 0.05*Math.sin(t*0.8) : 0.35;
+    if (currentMode !== 'creator') {
+      ctx.fillStyle = `rgba(0, 0, 0, ${bg})`;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
+
     if (currentMode === 'creator' && creator.active) {
     ctx.fillStyle = 'rgba(0, 0, 0, 0.25)'; 
     ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -670,25 +745,46 @@ function loop() {
             setAutoSpeedFor(currentMode);
         }
     }
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    
+      if (currentMode === 'waves') {
+      updateAndRenderWaves();
+
+      if (WAVECFG.auto) {
+        waveAutoTimer += 0.016;
+        if (waveAutoTimer >= waveAutoDelay) {
+          const wx = cam.x + Math.random() * canvas.width;
+          const wy = cam.y + Math.random() * canvas.height;
+          emitWave(wx, wy, WAVECFG.amp, WAVECFG.width, WAVECFG.life);
+          waveAutoTimer = 0;
+          waveAutoDelay = 6 + Math.random() * 6;
+        }
+      }
+    }
+
 
     for (let s of STARS) {
-        if (currentMode !== 'creator' || creator.play) {
-          s.x += s.vx;
-          s.y += s.vy;
-        }
-        if (s.x > canvas.width) s.x = 0;
-        if (s.x < 0) s.x = canvas.width;
-        if (s.y > canvas.height) s.y = 0;
-        if (s.y < 0) s.y = canvas.height;
+      if (currentMode !== 'creator' || creator.play) {
+        s.x += s.vx;
+        s.y += s.vy;
+      }
+      if (s.x > canvas.width) s.x = 0;
+      if (s.x < 0) s.x = canvas.width;
+      if (s.y > canvas.height) s.y = 0;
+      if (s.y < 0) s.y = canvas.height;
 
-        const b = 0.6 + 0.4 * Math.sin(1.7*t + s.phase);
+      const b = 0.6 + 0.4 * Math.sin(1.7*t + s.phase);
 
-        const rx = wrap(s.x - cam.x, canvas.width);
-        const ry = wrap(s.y - cam.y, canvas.height);
-        const rr = (currentMode === 'creator') ? Math.max(s.r * 1.9, 2.2) : s.r;
-        drawStar({ x: rx, y: ry, r: rr }, b);
+      let rx = wrap(s.x - cam.x, canvas.width);
+      let ry = wrap(s.y - cam.y, canvas.height);
+
+      if (currentMode === 'waves') {
+        const o = waveOffsetAt(rx, ry);
+        rx += o.x;
+        ry += o.y;
+      }
+
+      const rr = (currentMode === 'creator') ? Math.max(s.r * 1.9, 2.2) : s.r;
+      drawStar({ x: rx, y: ry, r: rr }, b);
     }
 
     const k = 2;
@@ -776,6 +872,13 @@ for (let i = 0; i < STARS.length; i++) {
 
         let ddy = ryB - ryA;
         if (ddy >  H/2) ryB -= H; else if (ddy < -H/2) ryB += H;
+
+        if (currentMode === 'waves') {
+          const oa = waveOffsetAt(rxA, ryA);
+          const ob = waveOffsetAt(rxB, ryB);
+          rxA += oa.x; ryA += oa.y;
+          rxB += ob.x; ryB += ob.y;
+        }
 
         const torusDelta = (val, size) => {
             val %= size;
