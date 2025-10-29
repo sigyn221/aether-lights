@@ -8,7 +8,29 @@ const MODE_HINT = {
 
 const cam = { x: 0, y: 0, vx: 0.5, vy: 0.05, auto: true };
 
-let creator = {
+const BODIES = []; 
+let placeMode = null; 
+let placing = null;   
+
+const GRAV = {
+  G: 1200,            
+  MASS_PER_S: 1500,
+  R_PER_S: 28,
+  MASS_MIN: 400,
+  MASS_MAX: 12000,
+  R_MIN: 10,
+  R_MAX: 85,
+  BH_SWALLOW_K: 0.85,
+  STAR_SPEED_CLAMP: 1.8,
+
+  INFL_RANGE_K: 2.0,  
+  SOFTEN: 8,          
+  ORBIT_BIAS: 0.45,   
+  DAMP_INFL: 0.997,   
+  MAX_ACCEL: 1800     
+};
+
+  let creator = {
   active: false,
   play: false,
   picked: [],
@@ -201,10 +223,15 @@ function setMode(mode) {
   }
 
   if (mode === 'waves') {
-  WAVES.length = 0;
-  waveAutoTimer = 0;
-  waveAutoDelay = 6 + Math.random() * 6;
-  }
+    WAVES.length = 0;
+    waveAutoTimer = 0;
+    waveAutoDelay = 6 + Math.random() * 6;
+
+    placingKey = null;
+    placingType = null;
+    placingRPreview = 0;
+    placingStart = 0;
+}
 
   if (mode === 'creator') {
     creator.active = true;
@@ -399,6 +426,26 @@ const wrap = (n, max) => {
     return n < 0 ? n + max : n;
 };
 
+function torusVec(ax, ay, bx, by, W, H) {
+  let dx = bx - ax, dy = by - ay;
+  if (dx >  W/2) dx -= W; else if (dx < -W/2) dx += W;
+  if (dy >  H/2) dy -= H; else if (dy < -H/2) dy += H;
+  return { dx, dy };
+}
+
+function smoothstep(edge0, edge1, x) {
+  const t = Math.max(0, Math.min(1, (x - edge0) / (edge1 - edge0)));
+  return t * t * (3 - 2 * t);
+}
+
+function getPlacementPoint() {
+  const W = canvas.width, H = canvas.height;
+  const inside = (mouse.x >= 0 && mouse.x < W && mouse.y >= 0 && mouse.y < H);
+  const sx = inside ? mouse.x : W / 2;
+  const sy = inside ? mouse.y : H / 2;
+  return { wx: cam.x + sx, wy: cam.y + sy };
+}
+
 let shootingActive = false;
 
 function pickStarAtScreen(x, y) {
@@ -417,6 +464,22 @@ function pickStarAtScreen(x, y) {
 }
 
 window.addEventListener('keydown', (e) => {
+  if ((e.key === 'p' || e.key === 'P' || e.key === 'b' || e.key === 'B')) {
+    const key = e.key.toLowerCase();
+    if (placingKey !== key) {
+      placingKey = key;
+      placingType = (key === 'p') ? 'planet' : 'blackhole';
+      placingStart = performance.now();
+      placingRPreview = GRAV.R_MIN;
+
+      const hud = document.getElementById('hud'), txt = document.getElementById('hud-text');
+      if (hud && txt) {
+        txt.textContent = `Waves: holding ${placingType.toUpperCase()} — release to place`;
+        hud.hidden = false; clearTimeout(hud._t);
+        hud._t = setTimeout(()=>{ hud.hidden = true; }, 1200);
+      }
+    }
+  }
     const keys = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '];
     if (keys.includes(e.key)) e.preventDefault();
     const kick = (currentMode === 'creator') ? 0.15 : 0.6; 
@@ -513,6 +576,30 @@ window.addEventListener('keydown', (e) => {
     
    
 });
+
+window.addEventListener('keyup', (e) => {
+  if (currentMode !== 'waves') return;
+  const key = e.key.toLowerCase();
+  if (!placingKey || key !== placingKey) return;
+
+  const held = (performance.now() - placingStart) / 1000;
+  const mass = Math.max(GRAV.MASS_MIN, Math.min(GRAV.MASS_MAX, GRAV.MASS_MIN + GRAV.MASS_PER_S * held));
+  const r = Math.max(GRAV.R_MIN, Math.min(GRAV.R_MAX, GRAV.R_MIN + GRAV.R_PER_S * held));
+
+  const { wx, wy } = getPlacementPoint();
+  BODIES.push({
+    type: placingType,
+    x: wrap(wx, canvas.width),
+    y: wrap(wy, canvas.height),
+    mass, r
+  });
+
+  placingKey = null;
+  placingType = null;
+  placingStart = 0;
+  placingRPreview = 0;
+});
+
 canvas.addEventListener('mousedown', (e) => {
   if (currentMode !== 'waves') return;
   const rect = canvas.getBoundingClientRect();
@@ -535,6 +622,7 @@ canvas.addEventListener('mouseup', () => {
 
 canvas.addEventListener('mousemove', (e) => {
   if (currentMode !== 'waves' || !wavePressing) return;
+  if (placingKey) return; 
   const now = performance.now();
   const pressedFor = now - wavePressStart;
   if (pressedFor < WAVECFG.longpressMs) return;
@@ -747,7 +835,56 @@ function loop() {
     }
     
       if (currentMode === 'waves') {
-      updateAndRenderWaves();
+        updateAndRenderWaves();
+        if (placingKey && placingType) {
+          const held = (performance.now() - placingStart) / 1000;
+          placingRPreview = Math.max(GRAV.R_MIN, Math.min(GRAV.R_MAX, GRAV.R_MIN + GRAV.R_PER_S * held));
+          const { wx, wy } = getPlacementPoint();
+          const rx = wrap(wx - cam.x, canvas.width);
+          const ry = wrap(wy - cam.y, canvas.height);
+
+          ctx.setLineDash([6,4]);
+          ctx.lineWidth = 1.5;
+          ctx.strokeStyle = (placingType === 'planet') ? 'rgba(170,220,255,0.95)' : 'rgba(255,230,170,0.95)';
+          ctx.beginPath();
+          ctx.arc(rx, ry, placingRPreview, 0, Math.PI*2);
+          ctx.stroke();
+          ctx.setLineDash([]);
+        }
+
+      for (const body of BODIES) {
+        const rx = wrap(body.x - cam.x, canvas.width);
+        const ry = wrap(body.y - cam.y, canvas.height);
+
+        if (body.type === 'planet') {
+          const grd = ctx.createRadialGradient(rx, ry, 0, rx, ry, body.r);
+          grd.addColorStop(0, 'rgba(170,220,255,0.8)');
+          grd.addColorStop(1, 'rgba(170,220,255,0.0)');
+          ctx.fillStyle = grd;
+          ctx.beginPath();
+          ctx.arc(rx, ry, body.r, 0, Math.PI*2);
+          ctx.fill();
+
+          ctx.strokeStyle = 'rgba(200,230,255,0.6)';
+          ctx.lineWidth = 1.2;
+          ctx.beginPath();
+          ctx.arc(rx, ry, body.r*0.35, 0, Math.PI*2);
+          ctx.stroke();
+        } else {
+          ctx.fillStyle = 'rgba(0,0,0,0.9)';
+          ctx.beginPath();
+          ctx.arc(rx, ry, body.r*0.6, 0, Math.PI*2);
+          ctx.fill();
+
+          const ring = ctx.createRadialGradient(rx, ry, body.r*0.6, rx, ry, body.r*1.05);
+          ring.addColorStop(0, 'rgba(0,0,0,0.0)');
+          ring.addColorStop(1, 'rgba(255,230,170,0.35)');
+          ctx.fillStyle = ring;
+          ctx.beginPath();
+          ctx.arc(rx, ry, body.r*1.05, 0, Math.PI*2);
+          ctx.fill();
+        }
+      }
 
       if (WAVECFG.auto) {
         waveAutoTimer += 0.016;
@@ -763,6 +900,77 @@ function loop() {
 
 
     for (let s of STARS) {
+      if (currentMode === 'waves' && BODIES.length) {
+        const W = canvas.width, H = canvas.height;
+        let axSum = 0, aySum = 0;
+
+        for (const body of BODIES) {
+          const { dx, dy } = torusVec(s.x, s.y, body.x, body.y, W, H);
+          const r2s = dx*dx + dy*dy;
+          const r = Math.max(1e-6, Math.sqrt(r2s));
+
+          const inflR = GRAV.INFL_RANGE_K * body.r;
+          if (r > inflR) continue;
+
+          if (body.type === 'blackhole') {
+            const swallowR = GRAV.BH_SWALLOW_K * body.r;
+            if (r < swallowR) {
+              s.x = rand(0, W);
+              s.y = rand(0, H);
+              s.vx = rand(0.1, MAX_SPEED) * sign();
+              s.vy = rand(0.1, MAX_SPEED) * sign();
+              continue;
+            }
+          }
+
+          const r2 = r2s + GRAV.SOFTEN * GRAV.SOFTEN;
+          const baseA = GRAV.G * body.mass / r2; 
+          const x = r / body.r;
+          const fall = (x <= 1) ? 1 : (1 - smoothstep(1, GRAV.INFL_RANGE_K, x)); // 1..0
+          const a = baseA * fall;
+          const ux = dx / r, uy = dy / r;            
+          const tx = -uy, ty = ux;                    
+          const vr = s.vx * ux + s.vy * uy;
+
+          let ax = a * ux;
+          let ay = a * uy;
+
+          if (vr < 0) {
+            const twist = GRAV.ORBIT_BIAS * (1 - Math.min(1, r / inflR));
+            ax += a * twist * tx;
+            ay += a * twist * ty;
+          }
+
+          axSum += ax;
+          aySum += ay;
+        }
+
+        const aMag = Math.hypot(axSum, aySum);
+        if (aMag > GRAV.MAX_ACCEL) {
+          const k = GRAV.MAX_ACCEL / aMag;
+          axSum *= k; aySum *= k;
+        }
+
+        s.vx += axSum * 0.016;
+        s.vy += aySum * 0.016;
+
+        let inAnyInfluence = false;
+        for (const body of BODIES) {
+          const { dx, dy } = torusVec(s.x, s.y, body.x, body.y, W, H);
+          if (Math.hypot(dx, dy) <= GRAV.INFL_RANGE_K * body.r) { inAnyInfluence = true; break; }
+        }
+        if (inAnyInfluence) {
+          s.vx *= GRAV.DAMP_INFL;
+          s.vy *= GRAV.DAMP_INFL;
+        }
+
+        const sp = Math.hypot(s.vx, s.vy);
+        if (sp > GRAV.STAR_SPEED_CLAMP) {
+          const k = GRAV.STAR_SPEED_CLAMP / sp;
+          s.vx *= k; s.vy *= k;
+        }
+      }
+
       if (currentMode !== 'creator' || creator.play) {
         s.x += s.vx;
         s.y += s.vy;
@@ -886,6 +1094,7 @@ for (let i = 0; i < STARS.length; i++) {
             if (val < -size/2) val += size;
             return val;
         };
+
         const distToMouse = (x, y) => {
             const dx = torusDelta(x - mouse.x, canvas.width);
             const dy = torusDelta(y - mouse.y, canvas.height);
@@ -909,97 +1118,7 @@ for (let i = 0; i < STARS.length; i++) {
         }
         
 }
-if (currentMode === 'creator') {
-  for (const C of USER_CONSTELLATIONS) {
-    ctx.lineWidth = 1.2;
-    ctx.strokeStyle = C.color || 'rgba(255,230,170,0.9)'; 
-    for (const [i, j] of C.edges) {
-      const a = STARS[i], b = STARS[j];
-      const ax = wrap(a.x - cam.x, canvas.width);
-      const ay = wrap(a.y - cam.y, canvas.height);
-      const bx = wrap(b.x - cam.x, canvas.width);
-      const by = wrap(b.y - cam.y, canvas.height);
 
-      let rxA = ax, ryA = ay, rxB = bx, ryB = by;
-      const W = canvas.width, H = canvas.height;
-      let ddx = rxB - rxA; if (ddx > W/2) rxB -= W; else if (ddx < -W/2) rxB += W;
-      let ddy = ryB - ryA; if (ddy > H/2) ryB -= H; else if (ddy < -H/2) ryB += H;
-
-      ctx.beginPath();
-      ctx.moveTo(rxA, ryA);
-      ctx.lineTo(rxB, ryB);
-      ctx.stroke();
-      }
-
-      if (C.edges.length) {
-        let sx = 0, sy = 0, cnt = 0;
-          for (const [i,j] of C.edges) {
-            const a = STARS[i], b = STARS[j];
-            sx += (a.x + b.x) * 0.5; sy += (a.y + b.y) * 0.5; cnt++;
-          }
-        const cx = wrap((sx/cnt) - cam.x, canvas.width);
-        const cy = wrap((sy/cnt) - cam.y, canvas.height);
-        ctx.fillStyle = (C.color || 'rgba(255,230,170,0.9)').replace(/0\.\d+/, '1.0');
-        ctx.font = '500 13px Inter, system-ui, sans-serif';
-        ctx.fillText(C.name, cx + 6, cy - 6);
-        }
-     }
-
-  if (creator.tempEdges.length) {
-     ctx.lineWidth = 1.3;
-     ctx.strokeStyle = 'rgba(255,230,170,0.9)';
-     for (const [i,j] of creator.tempEdges) {
-      const a = STARS[i], b = STARS[j];
-      const ax = wrap(a.x - cam.x, canvas.width);
-      const ay = wrap(a.y - cam.y, canvas.height);
-      const bx = wrap(b.x - cam.x, canvas.width);
-      const by = wrap(b.y - cam.y, canvas.height);
-
-      let rxA = ax, ryA = ay, rxB = bx, ryB = by;
-      const W = canvas.width, H = canvas.height;
-      let ddx = rxB - rxA; if (ddx > W/2) rxB -= W; else if (ddx < -W/2) rxB += W;
-      let ddy = ryB - ryA; if (ddy > H/2) ryB -= H; else if (ddy < -H/2) ryB += H;
-
-      ctx.beginPath();
-      ctx.moveTo(rxA, ryA);
-      ctx.lineTo(rxB, ryB);
-      ctx.stroke();
-    }
-  }
-  if (creator.picked.length > 0 && creator.hoverStar !== -1) {
-    const last = STARS[creator.picked[creator.picked.length - 1]];
-    const hov = STARS[creator.hoverStar];
-    const ax = wrap(last.x - cam.x, canvas.width);
-    const ay = wrap(last.y - cam.y, canvas.height);
-    const bx = wrap(hov.x - cam.x, canvas.width);
-    const by = wrap(hov.y - cam.y, canvas.height);
-
-    let rxA = ax, ryA = ay, rxB = bx, ryB = by;
-    const W = canvas.width, H = canvas.height;
-    let ddx = rxB - rxA; if (ddx > W/2) rxB -= W; else if (ddx < -W/2) rxB += W;
-    let ddy = ryB - ryA; if (ddy > H/2) ryB -= H; else if (ddy < -H/2) ryB += H;
-
-    ctx.setLineDash([6, 6]);
-    ctx.lineWidth = 1.0;
-    ctx.strokeStyle = 'rgba(255,230,170,0.6)';
-    ctx.beginPath();
-    ctx.moveTo(rxA, ryA);
-    ctx.lineTo(rxB, ryB);
-    ctx.stroke();
-    ctx.setLineDash([]);
-  }
-
-  if (creator.hoverStar !== -1) {
-    const s = STARS[creator.hoverStar];
-    const rx = wrap(s.x - cam.x, canvas.width);
-    const ry = wrap(s.y - cam.y, canvas.height);
-    ctx.beginPath();
-    ctx.arc(rx, ry, Math.max(3, s.r + 2), 0, Math.PI*2);
-    ctx.strokeStyle = 'rgba(255,230,170,0.9)';
-    ctx.lineWidth = 1;
-    ctx.stroke();
-  }
-}
     requestAnimationFrame(loop);
 }
     
