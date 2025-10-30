@@ -438,6 +438,47 @@ function smoothstep(edge0, edge1, x) {
   return t * t * (3 - 2 * t);
 }
 
+function chooseOrbitRadius(body, r) {
+  const base = body.r;
+  const rings = [1.2, 1.6, 2.0, 2.6];
+  let best = base * rings[0];
+  let bestDiff = Math.abs(r - best);
+  for (let i = 1; i < rings.length; i++) {
+    const cand = base * rings[i];
+    const diff = Math.abs(r - cand);
+    if (diff < bestDiff) {
+      bestDiff = diff;
+      best = cand;
+    }
+  }
+  return { target: best, diff: bestDiff };
+}
+function lockStarToOrbit(star, body, dist, tangential) {
+  star.orbiting = body;
+
+  const rings = [1.3, 1.7, 2.1, 2.5];
+  let best = body.r * 1.7;
+  let bestDiff = Infinity;
+  for (const k of rings) {
+    const cand = body.r * k;
+    const d = Math.abs(cand - dist);
+    if (d < bestDiff) {
+      bestDiff = d;
+      best = cand;
+    }
+  }
+
+  star.orbitR = best;
+
+  const dx = star.x - body.x;
+  const dy = star.y - body.y;
+  star.orbitA = Math.atan2(dy, dx);
+
+  const base = 0.22 / Math.sqrt(best / body.r);
+  const dir = (tangential >= 0) ? 1 : -1;
+  star.orbitSpeed = dir * base;
+}
+
 function getPlacementPoint() {
   const W = canvas.width, H = canvas.height;
   const inside = (mouse.x >= 0 && mouse.x < W && mouse.y >= 0 && mouse.y < H);
@@ -587,11 +628,23 @@ window.addEventListener('keyup', (e) => {
   const r = Math.max(GRAV.R_MIN, Math.min(GRAV.R_MAX, GRAV.R_MIN + GRAV.R_PER_S * held));
 
   const { wx, wy } = getPlacementPoint();
+  const PLANET_COLORS = [
+  'rgba(170,220,255,',   
+  'rgba(255,210,160,',   
+  'rgba(200,180,255,',   
+  'rgba(180,255,210,',   
+];
+
   BODIES.push({
     type: placingType,
     x: wrap(wx, canvas.width),
     y: wrap(wy, canvas.height),
-    mass, r
+    mass,
+    r,
+    born: performance.now(),
+    color: (placingType === 'planet')
+      ? PLANET_COLORS[Math.floor(Math.random()*PLANET_COLORS.length)]
+      : null
   });
 
   placingKey = null;
@@ -647,7 +700,11 @@ STARS.push({
     r: rand(1.0, 2.2),
     vx: rand(0.1, MAX_SPEED) * sign(),
     vy: rand(0.1, MAX_SPEED) * sign(),
-    phase: rand(0, 2 * Math.PI)
+    phase: rand(0, 2 * Math.PI),
+    orbiting: null,
+    orbitR: 0,
+    orbitA: 0,
+    orbitSpeed: 0
 });
 
 for (let i = 0; i < N; i++) {
@@ -657,7 +714,11 @@ for (let i = 0; i < N; i++) {
         r: rand(0.7, 1.8),
         vx: rand(0.1, MAX_SPEED) * sign(),
         vy: rand(0.1, MAX_SPEED) * sign(),
-        phase: rand(0, 2 * Math.PI)
+        phase: rand(0, 2 * Math.PI),
+        orbiting: null,
+        orbitR: 0,
+        orbitA: 0,
+        orbitSpeed: 0
     });
 }
 
@@ -697,7 +758,11 @@ canvas.addEventListener('click', (e) => {
     r: rand(0.7, 1.8),
     vx: rand(0.1, MAX_SPEED) * sign(),
     vy: rand(0.1, MAX_SPEED) * sign(),
-    phase: rand(0, 2 * Math.PI)
+    phase: rand(0, 2 * Math.PI),
+    orbiting: null,
+    orbitR: 0,
+    orbitA: 0,
+    orbitSpeed: 0
   });
 });
 
@@ -797,7 +862,6 @@ function loop() {
     }
   }
 
-
     if (creator.picked.length > 0 && creator.hoverStar !== -1) {
       const a = creator.picked[creator.picked.length - 1];
       const b = creator.hoverStar;
@@ -836,6 +900,13 @@ function loop() {
     
       if (currentMode === 'waves') {
         updateAndRenderWaves();
+        const now = performance.now();
+        for (let i = BODIES.length - 1; i >= 0; i--) {
+          const b = BODIES[i];
+          if (b.born && (now - b.born) > 60000) {
+            BODIES.splice(i, 1);
+          }
+        }
         if (placingKey && placingType) {
           const held = (performance.now() - placingStart) / 1000;
           placingRPreview = Math.max(GRAV.R_MIN, Math.min(GRAV.R_MAX, GRAV.R_MIN + GRAV.R_PER_S * held));
@@ -857,20 +928,22 @@ function loop() {
         const ry = wrap(body.y - cam.y, canvas.height);
 
         if (body.type === 'planet') {
+          const base = body.color || 'rgba(170,220,255,';
           const grd = ctx.createRadialGradient(rx, ry, 0, rx, ry, body.r);
-          grd.addColorStop(0, 'rgba(170,220,255,0.8)');
-          grd.addColorStop(1, 'rgba(170,220,255,0.0)');
+          grd.addColorStop(0, base + '0.85)');
+          grd.addColorStop(1, base + '0.0)');
           ctx.fillStyle = grd;
           ctx.beginPath();
           ctx.arc(rx, ry, body.r, 0, Math.PI*2);
           ctx.fill();
 
-          ctx.strokeStyle = 'rgba(200,230,255,0.6)';
+          ctx.strokeStyle = base + '0.45)';
           ctx.lineWidth = 1.2;
           ctx.beginPath();
           ctx.arc(rx, ry, body.r*0.35, 0, Math.PI*2);
           ctx.stroke();
-        } else {
+        }
+        else {
           ctx.fillStyle = 'rgba(0,0,0,0.9)';
           ctx.beginPath();
           ctx.arc(rx, ry, body.r*0.6, 0, Math.PI*2);
@@ -898,8 +971,54 @@ function loop() {
       }
     }
 
+    function chooseOrbitRadius(body, r) {
+      const base = body.r;
+      const bands = [1.3, 1.7, 2.1]; 
+      let best = null;
+      let bestDiff = Infinity;
+      for (const k of bands) {
+        const target = k * base;
+        const diff = Math.abs(r - target);
+        if (diff < bestDiff) {
+          bestDiff = diff;
+          best = target;
+        }
+      }
+      return { target: best, diff: bestDiff };
+    }
 
     for (let s of STARS) {
+      if (s.orbiting) {
+        const body = s.orbiting;
+        if (!BODIES.includes(body)) {
+          s.orbiting = null; 
+        } else {
+          s.orbitA += s.orbitSpeed;
+
+          const cx = body.x;
+          const cy = body.y;
+
+          s.x = cx + Math.cos(s.orbitA) * s.orbitR;
+          s.y = cy + Math.sin(s.orbitA) * s.orbitR;
+
+          const b = 0.6 + 0.4 * Math.sin(1.7*t + s.phase);
+
+          let rx = wrap(s.x - cam.x, canvas.width);
+          let ry = wrap(s.y - cam.y, canvas.height);
+
+          if (currentMode === 'waves') {
+            const o = waveOffsetAt(rx, ry);
+            rx += o.x;
+            ry += o.y;
+            if (Math.hypot(o.x, o.y) > 4) {
+              s.orbiting = null;
+              s.vx += o.x * 0.25;
+              s.vy += o.y * 0.25;
+            }
+          }
+
+          drawStar({ x: rx, y: ry, r: s.r }, b);
+          continue;}}
       if (currentMode === 'waves' && BODIES.length) {
         const W = canvas.width, H = canvas.height;
         let axSum = 0, aySum = 0;
@@ -926,19 +1045,47 @@ function loop() {
           const r2 = r2s + GRAV.SOFTEN * GRAV.SOFTEN;
           const baseA = GRAV.G * body.mass / r2; 
           const x = r / body.r;
-          const fall = (x <= 1) ? 1 : (1 - smoothstep(1, GRAV.INFL_RANGE_K, x)); // 1..0
+          const fall = (x <= 1) ? 1 : (1 - smoothstep(1, GRAV.INFL_RANGE_K, x)); 
           const a = baseA * fall;
-          const ux = dx / r, uy = dy / r;            
-          const tx = -uy, ty = ux;                    
+          const ux = dx / r, uy = dy / r;
+          const tx = -uy, ty = ux;
           const vr = s.vx * ux + s.vy * uy;
 
-          let ax = a * ux;
-          let ay = a * uy;
+          let ax = 0, ay = 0;
 
-          if (vr < 0) {
-            const twist = GRAV.ORBIT_BIAS * (1 - Math.min(1, r / inflR));
-            ax += a * twist * tx;
-            ay += a * twist * ty;
+          if (body.type === 'planet') {
+            const { target, diff } = chooseOrbitRadius(body, r);
+            const snapTolerance = body.r * 0.4; 
+
+            if (diff < snapTolerance) {
+              const tangential = s.vx * tx + s.vy * ty;
+              lockStarToOrbit(s, body, r, tangential);
+              continue;
+            }
+
+            const dir = (r > target) ? -1 : +1;
+            const pull = a * 0.55;
+            ax += dir * pull * ux;
+            ay += dir * pull * uy;
+          }
+          else {
+            ax = a * ux;
+            ay = a * uy;
+
+            if (vr < 0) {
+              const twist = GRAV.ORBIT_BIAS * (1 - Math.min(1, r / inflR));
+              ax += a * twist * tx;
+              ay += a * twist * ty;
+            }
+          }
+          if (body.type === 'planet' && r < inflR * 0.9) {
+            const spLoc = Math.hypot(s.vx + axSum*0.016, s.vy + aySum*0.016);
+            const maxLoc = GRAV.STAR_SPEED_CLAMP * 0.8; 
+            if (spLoc > maxLoc) {
+              const kLoc = maxLoc / spLoc;
+              axSum *= kLoc;
+              aySum *= kLoc;
+            }
           }
 
           axSum += ax;
@@ -1045,7 +1192,7 @@ function loop() {
         ctx.fill();
 
     }
-
+if(currentMode === 'classic'){
 for (let i = 0; i < STARS.length; i++) {
     const a = STARS[i];
     const neigh = [];
@@ -1117,7 +1264,7 @@ for (let i = 0; i < STARS.length; i++) {
         ctx.stroke();
         }
         
-}
+}}
 
     requestAnimationFrame(loop);
 }
