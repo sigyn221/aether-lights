@@ -546,43 +546,56 @@ const KNOWN_CONSTELLATIONS = {
       raDecToXYZ(raHMS(13, 47, 32), +49.31),
     ],
         edges: [
-      [7,0], [7,1],
-      [0,1],
-      [0,2], [2,5],
-      [1,4], [4,6],
-      [2,3], [3,4],
+      [0,1], [0,3],
+      [1,2], [2,3],
+      [3,4], 
+      [4,5],
       [5,6],
     ],
     labelFrom: [2,3,4],
   },
-  ursa_major: {
-    label: 'Ursa Major',
-    color: '173,216,255',
+  cassiopeia: {
+    label: 'Cassiopeia',
+    color: '255,200,230',
     stars: [
-      // 0 Dubhe 
-      raDecToXYZ(raHMS(11, 3, 43), +61.75),
-      // 1 Merak 
-      raDecToXYZ(raHMS(11, 1, 50), +56.38),
-      // 2 Phecda 
-      raDecToXYZ(raHMS(11, 53, 49), +53.69),
-      // 3 Megrez 
-      raDecToXYZ(raHMS(12, 15, 25), +57.03),
-      // 4 Alioth 
-      raDecToXYZ(raHMS(12, 54, 1), +55.96),
-      // 5 Mizar 
-      raDecToXYZ(raHMS(13, 23, 55), +54.93),
-      // 6 Alkaid 
-      raDecToXYZ(raHMS(13, 47, 32), +49.31),
+      // 0 Caph 
+      raDecToXYZ(raHMS(0, 9, 10), +59.15),
+      // 1 Schedar
+      raDecToXYZ(raHMS(0, 40, 30), +56.54),
+      // 2 Cih /
+      raDecToXYZ(raHMS(0, 56, 42), +60.72),
+      // 3 Ruchbah 
+      raDecToXYZ(raHMS(1, 25, 48), +60.24),
+      // 4 Segin 
+      raDecToXYZ(raHMS(1, 54, 23), +63.67),
     ],
         edges: [
-      [7,0], [7,1],
       [0,1],
-      [0,2], [2,5],
-      [1,4], [4,6],
-      [2,3], [3,4],
-      [5,6],
+      [1,2], 
+      [2,3],
+      [3,4],
     ],
-    labelFrom: [2,3,4],
+    labelFrom: [1,2,3],
+  },
+  cygnus: {
+    label: 'Cygnus',
+    color: '200,255,210',
+    stars: [
+      // 0 Deneb 
+      raDecToXYZ(raHMS(20, 41, 25), +45.28),
+      // 1 Sadr 
+      raDecToXYZ(raHMS(20, 22, 14), +40.26),
+      // 2 Gienah 
+      raDecToXYZ(raHMS(20, 46, 13), +33.97),
+      // 3 Delta Cygni
+      raDecToXYZ(raHMS(19, 44, 58), +45.13),
+      // 4 Albireo 
+      raDecToXYZ(raHMS(19, 30, 43), +27.96),
+    ],
+        edges: [
+       [0,1], [1,2], [1,3], [1,4],
+    ],
+    labelFrom: [1,2,3],
   },
 };
 
@@ -1173,7 +1186,7 @@ function drawConstellationOverlay(constel, alpha, yaw, pitch) {
   const H = canvas.height;
   const projected = [];
   for (let i = 0; i < constel.stars.length; i++) {
-    const v = creatorViewOf(constel.stars[i], yaw, pitch);
+    const v = creatorViewOf(constel.stars[i], yaw, pitch); 
     const p = projectToScreen(v, W, H);
     if (!p) {
       projected.push(null);
