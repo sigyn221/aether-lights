@@ -267,7 +267,7 @@ function wantedClassicStars() {
   const W = canvas.width, H = canvas.height;
   const base = Math.floor(0.00012 * W * H) + 80;
   const mul = 2.4;
-  const cap = 1500;
+  const cap = 2200;
   return Math.min(cap, Math.floor(base * mul));
 }
 
@@ -480,6 +480,63 @@ let spawnTimer = 0;
 let spawnDelay = Math.random() * 15 + 15; 
 
 const USER_CONSTELLATIONS = []; 
+
+const ORION_STARS = (function() {
+
+  const deg2rad = d => d * Math.PI / 180;
+
+  function raHMS(h, m, s) {
+    return (h + m/60 + s/3600) * 15; 
+  }
+
+  function raDecToXYZ(raDeg, decDeg) {
+    const ra = deg2rad(raDeg);
+    const dec = deg2rad(decDeg);
+    const x = Math.cos(dec) * Math.cos(ra);
+    const y = Math.sin(dec);
+    const z = Math.cos(dec) * Math.sin(ra);
+    return { x, y, z };
+  }
+
+  const stars = [
+    // 0 Betelgeuse 
+    raDecToXYZ(raHMS(5,55,10), 7.4),
+    // 1 Bellatrix 
+    raDecToXYZ(raHMS(5,25,7), 6.35),
+    // 2 Alnitak 
+    raDecToXYZ(raHMS(5,40,45), -1.93),
+    // 3 Alnilam 
+    raDecToXYZ(raHMS(5,36,13), -1.2),
+    // 4 Mintaka 
+    raDecToXYZ(raHMS(5,32,0), -0.28),
+    // 5 Saiph 
+    raDecToXYZ(raHMS(5,47,45), -9.66),
+    // 6 Rigel 
+    raDecToXYZ(raHMS(5,14,32), -8.2),
+    // 7 Meissa 
+    raDecToXYZ(raHMS(5,35,8), 9.93),
+  ];
+
+  return stars;
+})();
+
+const ORION_EDGES = [
+  [7, 0], [7, 1],
+  [0, 1],
+  [0, 2], [2, 5],
+  [1, 4], [4, 6],
+  [2, 3], [3, 4],
+  [5, 6],
+];
+
+const CONSTEL_STATE = {
+  active: false,
+  name: null,        
+  t: 0,
+  cooldown: 0,        
+  period: 15,         
+  dur: 10,            
+};
 
 function spawnShootingStar(fromEdge = null, sx = null, sy = null) {
   if (shootingActive) return; 
@@ -1054,6 +1111,69 @@ function fbm(x, y) {
   }
   return v;
 }
+function drawOrionOverlay(alpha, yaw, pitch) {
+  const W = canvas.width;
+  const H = canvas.height;
+  const projected = [];
+  for (let i = 0; i < ORION_STARS.length; i++) {
+    const v = creatorViewOf(ORION_STARS[i], yaw, pitch);
+    const p = projectToScreen(v, W, H);
+    if (!p) {
+      projected.push(null);
+      continue;
+    }
+    projected.push({ p, v });
+  }
+
+  ctx.save();
+  ctx.lineWidth = 1.1;
+  ctx.strokeStyle = `rgba(255,230,170,${alpha * 0.45})`;
+  ctx.setLineDash([]);
+  for (const [i, j] of ORION_EDGES) {
+    const A = projected[i];
+    const B = projected[j];
+    if (!A || !B) continue;
+    ctx.beginPath();
+    ctx.moveTo(A.p.x, A.p.y);
+    ctx.lineTo(B.p.x, B.p.y);
+    ctx.stroke();
+  }
+  ctx.setLineDash([]);
+
+  for (let i = 0; i < projected.length; i++) {
+    const P = projected[i];
+    if (!P) continue;
+    const rHalo = 10;
+    const g = ctx.createRadialGradient(P.p.x, P.p.y, 0, P.p.x, P.p.y, rHalo);
+    g.addColorStop(0, `rgba(255,255,255,${alpha * 0.55})`);
+    g.addColorStop(1, `rgba(255,255,255,0)`);
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(P.p.x, P.p.y, rHalo, 0, Math.PI*2);
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.arc(P.p.x, P.p.y, 2.4, 0, Math.PI*2);
+    ctx.fillStyle = `rgba(255,255,255,${alpha})`;
+    ctx.fill();
+  }
+
+  const beltPts = [projected[2], projected[3], projected[4]].filter(Boolean);
+  if (beltPts.length) {
+    let sx = 0, sy = 0;
+    for (const B of beltPts) { sx += B.p.x; sy += B.p.y; }
+    sx /= beltPts.length;
+    sy /= beltPts.length;
+    ctx.font = '500 14px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+    ctx.fillStyle = `rgba(255,255,255,${alpha})`;
+    ctx.strokeStyle = `rgba(0,0,0,${alpha*0.6})`;
+    ctx.lineWidth = 3;
+    ctx.strokeText('Orion', sx + 10, sy - 10);
+    ctx.fillText('Orion', sx + 10, sy - 10);
+  }
+
+  ctx.restore();
+}
 
 function generateNebula() {
   nebulaCanvas = document.createElement('canvas');
@@ -1248,7 +1368,7 @@ function loop() {
     ctx.fill();
   }
 
-   for (const C of USER_CONSTELLATIONS) {
+  for (const C of USER_CONSTELLATIONS) {
   const col = C.color || 'rgba(255,230,170,0.9)';
 
   for (const [i, j] of C.edges) {
@@ -1346,7 +1466,7 @@ function loop() {
       baseAlpha += (s0.aBoost || 0);
       const alpha = Math.min(0.95, baseAlpha * (0.60 + 0.70 * flick));
       const sizeBase = Math.max(0.6, s0.mag * (0.75 + 0.22 / depth));
-      const size = sizeBase * (0.80 + 0.55 * flick);
+      const size = sizeBase * 1.12 * (0.80 + 0.55 * flick);
       const rHalo = size * 1.8;
       const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, rHalo);
       g.addColorStop(0, `rgba(255,255,255,${alpha * 0.55})`);
@@ -1363,6 +1483,41 @@ function loop() {
     }
     
     render3DMeteors('classic', classic.yaw, classic.pitch);
+        
+    if (!CONSTEL_STATE.active) {
+      CONSTEL_STATE.cooldown += 0.016;
+      if (CONSTEL_STATE.cooldown >= CONSTEL_STATE.period) {
+        
+        CONSTEL_STATE.active = true;
+        CONSTEL_STATE.name = 'orion';
+        CONSTEL_STATE.t = 0;
+        CONSTEL_STATE.cooldown = 0;
+      }
+    } else {
+      CONSTEL_STATE.t += 0.016;
+      const T = CONSTEL_STATE.t;
+      const DUR = CONSTEL_STATE.dur;    
+      
+      let alpha = 0;
+      if (T < 1.5) {
+        alpha = T / 1.5;
+      } else if (T < DUR - 1.5) {
+        alpha = 1;
+      } else {
+        const left = DUR - T;
+        alpha = Math.max(0, left / 1.5);
+      }
+
+      if (CONSTEL_STATE.name === 'orion' && alpha > 0) {
+        drawOrionOverlay(alpha, classic.yaw, classic.pitch);
+      }
+
+      if (T >= DUR) {
+        CONSTEL_STATE.active = false;
+        CONSTEL_STATE.name = null;
+        CONSTEL_STATE.t = 0;
+      }
+    }
 
     requestAnimationFrame(loop);
     return;
