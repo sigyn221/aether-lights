@@ -17,6 +17,14 @@ const METEORS3D = [];
 let placeMode = null; 
 let placing = null;   
 
+let nebulaCanvas = null;
+let nebulaCtx = null;
+let nebulaW = 512;
+let nebulaH = 256;
+let nebulaShift = 0;       
+let nebulaColorPhase = 0;  
+let nebulaReady = false;
+
 const GRAV = {
   G: 1200,            
   MASS_PER_S: 1500,
@@ -37,10 +45,12 @@ const GRAV = {
 let meteorShower = {
   active: false,
   t: 0,
-  duration: 5.0,        
-  spawnEvery: 0.12,     
+  duration: 5.0,
+  spawnEvery: 0.12,
   sinceLast: 0,
-  dir: null
+  dir: null,
+  vx: 0,
+  vy: 0
 };
   let creator = {
   active: false,
@@ -362,6 +372,7 @@ if (mode === 'classic') {
     });
   }
   setMode('classic'); 
+  generateNebula();
 })();
 
 (function initHUDReveal(){
@@ -525,10 +536,12 @@ function spawnShootingStar(fromEdge = null, sx = null, sy = null) {
   setTimeout(() => shootingActive = false, 1200);
 }
 
-function spawn3DMeteor(mode = currentMode) {
+function spawn3DMeteor(mode = currentMode, edgeOpt = null, velOpt = null) {
   const W = canvas.width;
   const H = canvas.height;
-  const edge = fromEdge || ['top','right','bottom','left'][Math.floor(Math.random()*4)];
+
+  const edge = edgeOpt || ['top','right','bottom','left'][Math.floor(Math.random()*4)];
+
   let sx, sy;
   if (edge === 'top')    { sx = Math.random()*W; sy = -30; }
   if (edge === 'bottom') { sx = Math.random()*W; sy = H+30; }
@@ -539,16 +552,28 @@ function spawn3DMeteor(mode = currentMode) {
   const f = 0.9 * Math.min(W, H);
   const x3 = (sx - W/2) / f * zStart;
   const y3 = (H/2 - sy) / f * zStart;
-  const target = { x: 0, y: 0, z: 1.0 };
 
-  let dx = target.x - x3;
-  let dy = target.y - y3;
-  let dz = target.z - zStart;
-  const len = Math.hypot(dx, dy, dz);
-  dx /= len; dy /= len; dz /= len;
-  dx += (Math.random() - 0.5) * 0.25; 
-  dy += (Math.random() - 0.5) * 0.25;
+  let vx, vy, vz;
 
+  if (velOpt) {
+    vx = velOpt.vx;
+    vy = velOpt.vy;
+    vz = velOpt.vz;
+    vx += (Math.random() - 0.5) * 0.08;
+    vy += (Math.random() - 0.5) * 0.08;
+  } else {
+    const target = { x: 0, y: 0, z: 1.0 };
+    let dx = target.x - x3;
+    let dy = target.y - y3;
+    let dz = target.z - zStart;
+    const len = Math.hypot(dx, dy, dz);
+    dx /= len; dy /= len; dz /= len;
+    dx += (Math.random() - 0.5) * 0.25;
+    dy += (Math.random() - 0.5) * 0.25;
+    vx = dx * 1.1;
+    vy = dy * 1.1;
+    vz = dz * 1.1;
+  }
 
   const PALETTE3D = [
     { tail: '255,214,137', head: '255,244,229' },
@@ -562,10 +587,10 @@ function spawn3DMeteor(mode = currentMode) {
     x: x3,
     y: y3,
     z: zStart,
-    vx: dx * 1.1,     
-    vy: dy * 1.1,
-    vz: dz * 1.1,
-    life: 2.4 + Math.random()*0.6, 
+    vx,
+    vy,
+    vz,
+    life: 2.4 + Math.random()*0.6,
     col,
   });
 }
@@ -740,10 +765,21 @@ window.addEventListener('keydown', (e) => {
     spawn3DMeteor();
     }
     if (e.key === 'r' || e.key === 'R') {
+    const dir = ['top','right','bottom','left'][Math.floor(Math.random()*4)];
     meteorShower.active = true;
     meteorShower.t = 0;
     meteorShower.sinceLast = 999;
-    meteorShower.dir = ['top','right','bottom','left'][Math.floor(Math.random()*4)];
+    meteorShower.dir = dir;
+
+    let vx = 0, vy = 0, vz = 0.9;
+    if (dir === 'top')    { vy =  1.1; }
+    if (dir === 'bottom') { vy = -1.1; }
+    if (dir === 'left')   { vx =  1.1; }
+    if (dir === 'right')  { vx = -1.1; }
+
+    meteorShower.vx = vx;
+    meteorShower.vy = vy;
+    meteorShower.vz = vz;
     }
 
     if (currentMode === 'waves') {
@@ -1002,6 +1038,106 @@ function render3DMeteors(mode, yaw, pitch) {
     ctx.fill();
   }
 }
+function nrand(x, y) {
+  const s = Math.sin(x * 127.1 + y * 311.7) * 43758.5453;
+  return s - Math.floor(s);
+}
+
+function fbm(x, y) {
+  let v = 0.0;
+  let a = 0.5;
+  let f = 1.0;
+  for (let i = 0; i < 4; i++) {
+    v += a * nrand(x * f, y * f);
+    f *= 2.3;
+    a *= 0.52;
+  }
+  return v;
+}
+
+function generateNebula() {
+  nebulaCanvas = document.createElement('canvas');
+  nebulaCanvas.width = nebulaW;
+  nebulaCanvas.height = nebulaH;
+  nebulaCtx = nebulaCanvas.getContext('2d');
+
+  const img = nebulaCtx.createImageData(nebulaW, nebulaH);
+  const data = img.data;
+
+  for (let y = 0; y < nebulaH; y++) {
+    for (let x = 0; x < nebulaW; x++) {
+      const u = x / nebulaW;
+      const v = y / nebulaH;
+      const band = Math.exp(-Math.pow((v - 0.5) * 3.4, 2)); 
+      const noise = fbm(u * 3.5, v * 3.5);
+
+      let val = noise * band;
+      val = Math.pow(val, 1.4);
+
+      const idx = (y * nebulaW + x) * 4;
+      data[idx + 0] = Math.floor(255 * val);
+      data[idx + 1] = Math.floor(230 * val);
+      data[idx + 2] = Math.floor(255 * val);
+      data[idx + 3] = Math.floor(255 * val); 
+    }
+  }
+
+  nebulaCtx.putImageData(img, 0, 0);
+  nebulaReady = true;
+}
+
+function drawNebulaBackground() {
+  if (!nebulaReady) return;
+  const W = canvas.width;
+  const H = canvas.height;
+
+  nebulaShift += 0.025;
+
+  const bandY = H * 0.45;    
+  const bandH = H * 0.28;     
+  const scale = 2.4;
+  const drawW = nebulaW * scale;
+  const drawH = nebulaH * scale * 0.6;
+  const angle = -Math.PI * 0.065;  
+
+  ctx.save();
+  ctx.translate(W / 2, H / 2);
+  ctx.rotate(angle);
+
+  const shiftX = (nebulaShift % drawW) - drawW;
+
+  ctx.globalAlpha = 0.26;
+  for (let x = shiftX; x < W + drawW; x += drawW) {
+    ctx.drawImage(
+      nebulaCanvas,
+      x - W / 2,
+      bandY - H / 2 - drawH / 2,
+      drawW,
+      drawH
+    );
+  }
+  
+  const fadeGrad = ctx.createLinearGradient(
+    0,
+    bandY - H / 2 - bandH / 2,
+    0,
+    bandY - H / 2 + bandH / 2
+  );
+  fadeGrad.addColorStop(0.0, 'rgba(26,13,35,0)');
+  fadeGrad.addColorStop(0.35, 'rgba(26,13,35,0.35)');
+  fadeGrad.addColorStop(0.65, 'rgba(26,13,35,0.35)');
+  fadeGrad.addColorStop(1.0, 'rgba(26,13,35,0)');
+  ctx.globalAlpha = 1.0;
+  ctx.fillStyle = fadeGrad;
+  ctx.fillRect(
+    -W / 2,
+    bandY - H / 2 - bandH / 2,
+    W,
+    bandH
+  );
+
+  ctx.restore();
+}
 
 function loop() {
     t += 0.016;
@@ -1012,10 +1148,21 @@ function loop() {
     if (!meteorShower.active) {
       meteorShower.t += 0.016;          
       if (meteorShower.t >= 180) {      
-        meteorShower.active = true;     
-        meteorShower.t = 0;            
-        meteorShower.sinceLast = 999; 
-        meteorShower.dir = ['top','right','bottom','left'][Math.floor(Math.random()*4)];  
+        const dir = ['top','right','bottom','left'][Math.floor(Math.random()*4)];
+        meteorShower.active = true;
+        meteorShower.t = 0;
+        meteorShower.sinceLast = 999;
+        meteorShower.dir = dir;
+
+        let vx = 0, vy = 0, vz = 0.9;
+        if (dir === 'top')    { vy =  1.1; }
+        if (dir === 'bottom') { vy = -1.1; }
+        if (dir === 'left')   { vx =  1.1; }
+        if (dir === 'right')  { vx = -1.1; }
+
+        meteorShower.vx = vx;
+        meteorShower.vy = vy;
+        meteorShower.vz = vz;  
       }
     }
     if (meteorShower.active) {
@@ -1024,11 +1171,19 @@ function loop() {
 
       if (meteorShower.sinceLast >= meteorShower.spawnEvery) {
         meteorShower.sinceLast = 0;
-        spawn3DMeteor(currentMode, meteorShower.dir);
-        if (Math.random() < 0.35) {
-          const otherMode = (currentMode === 'classic') ? 'creator' : 'classic';
-          spawn3DMeteor(otherMode, meteorShower.dir);
-        }
+        spawn3DMeteor(
+        currentMode,
+        meteorShower.dir,
+        { vx: meteorShower.vx, vy: meteorShower.vy, vz: meteorShower.vz }
+      );
+      if (Math.random() < 0.35) {
+        const otherMode = (currentMode === 'classic') ? 'creator' : 'classic';
+        spawn3DMeteor(
+          otherMode,
+          meteorShower.dir,
+          { vx: meteorShower.vx, vy: meteorShower.vy, vz: meteorShower.vz }
+        );
+      }
       }
 
       if (meteorShower.t >= meteorShower.duration) {
@@ -1160,8 +1315,9 @@ function loop() {
     return; 
   }
   if (currentMode === 'classic' && classic.active) {
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
+    drawNebulaBackground();
 
     const W = canvas.width, H = canvas.height;
     proj = new Array(classic.stars3D.length);
