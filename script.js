@@ -13,6 +13,7 @@ const MODE_HINT = {
 const cam = { x: 0, y: 0, vx: 0.5, vy: 0.05, auto: true };
 const CREATOR_RIPPLES = [];
 const BODIES = []; 
+const METEORS3D = [];
 let placeMode = null; 
 let placing = null;   
 
@@ -33,7 +34,14 @@ const GRAV = {
   DAMP_INFL: 0.997,   
   MAX_ACCEL: 1800     
 };
-
+let meteorShower = {
+  active: false,
+  t: 0,
+  duration: 5.0,        
+  spawnEvery: 0.12,     
+  sinceLast: 0,
+  dir: null
+};
   let creator = {
   active: false,
   play: false,
@@ -517,6 +525,50 @@ function spawnShootingStar(fromEdge = null, sx = null, sy = null) {
   setTimeout(() => shootingActive = false, 1200);
 }
 
+function spawn3DMeteor(mode = currentMode) {
+  const W = canvas.width;
+  const H = canvas.height;
+  const edge = fromEdge || ['top','right','bottom','left'][Math.floor(Math.random()*4)];
+  let sx, sy;
+  if (edge === 'top')    { sx = Math.random()*W; sy = -30; }
+  if (edge === 'bottom') { sx = Math.random()*W; sy = H+30; }
+  if (edge === 'left')   { sx = -30; sy = Math.random()*H; }
+  if (edge === 'right')  { sx = W+30; sy = Math.random()*H; }
+
+  const zStart = 1.4 + Math.random()*0.5;
+  const f = 0.9 * Math.min(W, H);
+  const x3 = (sx - W/2) / f * zStart;
+  const y3 = (H/2 - sy) / f * zStart;
+  const target = { x: 0, y: 0, z: 1.0 };
+
+  let dx = target.x - x3;
+  let dy = target.y - y3;
+  let dz = target.z - zStart;
+  const len = Math.hypot(dx, dy, dz);
+  dx /= len; dy /= len; dz /= len;
+  dx += (Math.random() - 0.5) * 0.25; 
+  dy += (Math.random() - 0.5) * 0.25;
+
+
+  const PALETTE3D = [
+    { tail: '255,214,137', head: '255,244,229' },
+    { tail: '173,216,255', head: '235,246,255' },
+    { tail: '255,180,200', head: '255,238,245' },
+  ];
+  const col = PALETTE3D[Math.floor(Math.random()*PALETTE3D.length)];
+
+  METEORS3D.push({
+    mode,
+    x: x3,
+    y: y3,
+    z: zStart,
+    vx: dx * 1.1,     
+    vy: dy * 1.1,
+    vz: dz * 1.1,
+    life: 2.4 + Math.random()*0.6, 
+    col,
+  });
+}
 
 const wrap = (n, max) => {
     n %= max;
@@ -664,7 +716,7 @@ window.addEventListener('keydown', (e) => {
         if (e.key === 'r' || e.key === 'R') {
         creator.play = !creator.play;  
         }
-  }  
+    }  
     if (e.key === 'ArrowUp') {
         cam.vy -= kick;
         cam.auto = false;
@@ -683,6 +735,15 @@ window.addEventListener('keydown', (e) => {
     }
     if (e.key === 's' || e.key === 'S') {
     spawnShootingStar(); 
+    }
+    if (e.key === 'm' || e.key === 'M') {
+    spawn3DMeteor();
+    }
+    if (e.key === 'r' || e.key === 'R') {
+    meteorShower.active = true;
+    meteorShower.t = 0;
+    meteorShower.sinceLast = 999;
+    meteorShower.dir = ['top','right','bottom','left'][Math.floor(Math.random()*4)];
     }
 
     if (currentMode === 'waves') {
@@ -884,20 +945,60 @@ function addCreatorRipple(x, y) {
   });
 }
 
-function drawClassicDust(proj) {
-  const D = 120;
-  for (let i = 0; i < D; i++) {
-    const pick = proj[Math.floor(Math.random() * proj.length)];
-    if (!pick || !pick.p) continue;
-    const { x, y } = pick.p;
+function render3DMeteors(mode, yaw, pitch) {
+  if (!METEORS3D.length) return;
 
-    const jitterX = (Math.random() - 0.5) * 18;
-    const jitterY = (Math.random() - 0.5) * 18;
-    const alpha = 0.05 + Math.random() * 0.12;
+  const W = canvas.width;
+  const H = canvas.height;
 
-    ctx.fillStyle = `rgba(255,255,255,${alpha})`;
+  for (let i = METEORS3D.length - 1; i >= 0; i--) {
+    const m = METEORS3D[i];
+    if (m.mode !== mode) continue;
+
+    m.x += m.vx * 0.016;
+    m.y += m.vy * 0.016;
+    m.z += m.vz * 0.016;
+    m.life -= 0.016;
+
+    if (m.z <= 0.05 || m.life <= 0) {
+      METEORS3D.splice(i, 1);
+      continue;
+    }
+
+    const v = rotX(rotY({ x: m.x, y: m.y, z: m.z }, yaw), pitch);
+    const p = projectToScreen(v, W, H);
+    if (!p) {
+      METEORS3D.splice(i, 1);
+      continue;
+    }
+
+    const depth = Math.max(0.001, v.z);
+    const size = 2.0 / depth;
+
+    const back3D = {
+      x: m.x - m.vx * 0.12,
+      y: m.y - m.vy * 0.12,
+      z: m.z - m.vz * 0.12,
+    };
+    const backV = rotX(rotY(back3D, yaw), pitch);
+    const backP = projectToScreen(backV, W, H);
+    const alpha = Math.min(0.95, 0.5 + (1.4 - depth) * 0.35);
+    const gx0 = backP ? backP.x : p.x;
+    const gy0 = backP ? backP.y : p.y;
+
+    const grad = ctx.createLinearGradient(gx0, gy0, p.x, p.y);
+    grad.addColorStop(0, `rgba(${m.col.tail}, 0)`);
+    grad.addColorStop(1, `rgba(${m.col.tail}, ${alpha})`);
+    ctx.strokeStyle = grad;
+    ctx.lineWidth = 1.4;
     ctx.beginPath();
-    ctx.arc(x + jitterX, y + jitterY, Math.random() * 1.2 + 0.3, 0, Math.PI*2);
+    ctx.moveTo(gx0, gy0);
+    ctx.lineTo(p.x, p.y);
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, size, 0, Math.PI*2);
+    ctx.fillStyle = `rgba(${m.col.head}, ${alpha})`;
     ctx.fill();
   }
 }
@@ -905,6 +1006,37 @@ function drawClassicDust(proj) {
 function loop() {
     t += 0.016;
     frame++;
+    if (Math.random() < 0.00037) {
+      spawn3DMeteor(currentMode);
+    }
+    if (!meteorShower.active) {
+      meteorShower.t += 0.016;          
+      if (meteorShower.t >= 180) {      
+        meteorShower.active = true;     
+        meteorShower.t = 0;            
+        meteorShower.sinceLast = 999; 
+        meteorShower.dir = ['top','right','bottom','left'][Math.floor(Math.random()*4)];  
+      }
+    }
+    if (meteorShower.active) {
+      meteorShower.t += 0.016;
+      meteorShower.sinceLast += 0.016;
+
+      if (meteorShower.sinceLast >= meteorShower.spawnEvery) {
+        meteorShower.sinceLast = 0;
+        spawn3DMeteor(currentMode, meteorShower.dir);
+        if (Math.random() < 0.35) {
+          const otherMode = (currentMode === 'classic') ? 'creator' : 'classic';
+          spawn3DMeteor(otherMode, meteorShower.dir);
+        }
+      }
+
+      if (meteorShower.t >= meteorShower.duration) {
+        meteorShower.active = false;
+        meteorShower.dir = null;  
+      }
+    }
+
     const bg = (currentMode === 'waves') ? 0.30 + 0.05*Math.sin(t*0.8) : 0.35;
     if (currentMode !== 'creator') {
       ctx.fillStyle = `rgba(0, 0, 0, ${bg})`;
@@ -1022,6 +1154,8 @@ function loop() {
       ctx.stroke();
     }
 
+    render3DMeteors('creator', creator.yaw, creator.pitch);
+
     requestAnimationFrame(loop);
     return; 
   }
@@ -1036,7 +1170,6 @@ function loop() {
       const p = projectToScreen(v, W, H);
       proj[i] = { v, p };
     }
-    drawClassicDust(proj);
 
     if (classic.auto) {
       classic.yaw += classic.autoYaw;
@@ -1072,6 +1205,8 @@ function loop() {
       ctx.fillStyle = `rgba(255,255,255,${alpha})`;
       ctx.fill();
     }
+    
+    render3DMeteors('classic', classic.yaw, classic.pitch);
 
     requestAnimationFrame(loop);
     return;
