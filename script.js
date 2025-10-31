@@ -597,8 +597,138 @@ const KNOWN_CONSTELLATIONS = {
     ],
     labelFrom: [1,2,3],
   },
+  scorpius: {
+    label: 'Scorpius',
+    color: '255,180,180',
+    stars: [
+      // 0 Antares 
+      raDecToXYZ(raHMS(16, 29, 24), -26.43),
+      // 1 Acrab 
+      raDecToXYZ(raHMS(16, 5, 26), -19.80),
+      // 2 Dschubba 
+      raDecToXYZ(raHMS(16, 0, 20), -22.62),
+      // 3 π Sco
+      raDecToXYZ(raHMS(15, 59, 51), -26.11),
+      // 4 Shaula 
+      raDecToXYZ(raHMS(17, 33, 36), -37.10),
+      // 5 Lesath 
+      raDecToXYZ(raHMS(17, 30, 45), -37.30),
+      // 6 Sargas 
+      raDecToXYZ(raHMS(17, 37, 20), -43.00),
+      // 7 ε Sco
+      raDecToXYZ(raHMS(16, 50, 10), -34.30),
+    ],
+     edges: [
+       [0,1], [0,2], [3,0], [0,7], [7,4], [4,5], [5,6]
+    ],
+    labelFrom: [0, 4, 5],
+  },
+  leo: {
+    label: 'Leo',
+    color: '255,220,190',
+    stars: [
+      // 0 Regulus 
+      raDecToXYZ(raHMS(10, 8, 22), +11.97),
+      // 1 Algieba 
+      raDecToXYZ(raHMS(10, 19, 58), +19.84),
+      // 2 Zosma 
+      raDecToXYZ(raHMS(11, 14, 6), +20.52),
+      // 3 Denebola 
+      raDecToXYZ(raHMS(11, 49, 4), +14.57),
+      // 4 Adhafera 
+      raDecToXYZ(raHMS(10, 17, 6), +23.42),
+      // 5 Ras Elased Australis 
+      raDecToXYZ(raHMS(9, 46, 6), +23.77),
+      // 6 Rasalas 
+      raDecToXYZ(raHMS(9, 52, 45), +26.00),
+    ],
+    edges: [
+      [6,5], [5,4], [4,1],
+      [1,0], [1,2], [0,3], [2,3]
+    ],
+    labelFrom: [0,2],
+  },
+  pegasus: {
+   label: 'Pegasus',
+   color: '190,210,2550',
+   stars: [
+    // 0 Markab 
+    raDecToXYZ(raHMS(23, 4, 46), +15.21),
+    // 1 Scheat 
+    raDecToXYZ(raHMS(23, 3, 46), +28.08),
+    // 2 Algenib 
+    raDecToXYZ(raHMS(0, 13, 14), +15.18),
+    // 3 Alpheratz 
+    raDecToXYZ(raHMS(0, 8, 23), +29.09),
+    // 4 Enif 
+    raDecToXYZ(raHMS(21, 44, 12), +9.87),
+    // 5 Homam 
+    raDecToXYZ(raHMS(22, 41, 28), +10.83),
+    // 6 Matar 
+    raDecToXYZ(raHMS(22, 50, 4), +30.22),
+  ],
+  edges: [
+    [0,1], [1,3], [3,2], [2,0],
+    [0,5], [5,4],
+    [1,6],
+  ],
+  labelFrom: [0,1,2],
+},
+pegasus: {
+   label: 'Pegasus',
+   color: '190,210,2550',
+   stars: [
+    // 0 Markab 
+    raDecToXYZ(raHMS(23, 4, 46), +15.21),
+    // 1 Scheat 
+    raDecToXYZ(raHMS(23, 3, 46), +28.08),
+    // 2 Algenib 
+    raDecToXYZ(raHMS(0, 13, 14), +15.18),
+    // 3 Alpheratz 
+    raDecToXYZ(raHMS(0, 8, 23), +29.09),
+    // 4 Enif 
+    raDecToXYZ(raHMS(21, 44, 12), +9.87),
+    // 5 Homam 
+    raDecToXYZ(raHMS(22, 41, 28), +10.83),
+    // 6 Matar 
+    raDecToXYZ(raHMS(22, 50, 4), +30.22),
+  ],
+  edges: [
+    [0,1], [1,3], [3,2], [2,0],
+    [0,5], [5,4],
+    [1,6],
+  ],
+  labelFrom: [0,1,2],
+},
+lyra: {
+  label: 'Lyra',
+  color: '180,200,255',
+  stars: [
+    // 0 Vega 
+    raDecToXYZ(raHMS(18, 36, 56), +38.78),
+    // 1 Sheliak 
+    raDecToXYZ(raHMS(18, 50, 4), +33.36),
+    // 2 Sulafat 
+    raDecToXYZ(raHMS(18, 58, 56), +32.69),
+    // 3 δ² Lyr
+    raDecToXYZ(raHMS(18, 54, 30), +36.90),
+    // 4 ζ Lyr
+    raDecToXYZ(raHMS(18, 44, 46), +37.60),
+  ],
+  edges: [
+    [4,3], [1,2], [2,0], [1,4], [3,2]
+  ],
+  labelFrom: [0,3,2],
+},
 };
 
+window.addEventListener('keydown', (e) => {
+  if (e.key.toLowerCase() === 'y' && currentMode === 'classic') {
+    CONSTEL_STATE.active = true;
+    CONSTEL_STATE.name = 'lyra';
+    CONSTEL_STATE.t = 0;
+  }
+});
 const CONSTEL_STATE = {
   active: false,
   name: null,        
