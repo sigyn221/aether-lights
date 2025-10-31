@@ -11,7 +11,7 @@ const MODE_HINT = {
 };
 
 const cam = { x: 0, y: 0, vx: 0.5, vy: 0.05, auto: true };
-
+const CREATOR_RIPPLES = [];
 const BODIES = []; 
 let placeMode = null; 
 let placing = null;   
@@ -197,10 +197,9 @@ function genCreatorStars(count = 260) {
     }
   }
 }
-
 function genClassicStars(count = 260) {
   classic.stars3D = [];
-  const pFar = 0.30, pMid = 0.45;
+  const pFar = 0.22, pMid = 0.38;
   const nFar = Math.round(count * pFar);
   const nMid = Math.round(count * pMid);
   const nNear = count - nFar - nMid;
@@ -851,6 +850,7 @@ canvas.addEventListener('click', (e) => {
       }
       if (n === 0 || creator.picked[n - 1] !== idx) creator.picked.push(idx);
     }
+    addCreatorRipple(sx, sy);
     return; 
   }
   STARS.push({
@@ -872,6 +872,34 @@ function drawStar(s, brightness){
     ctx.arc(s.x, s.y, s.r, 0, 2 * Math.PI);
     ctx.fillStyle = `rgba(255, 255, 255, ${brightness})`;
     ctx.fill();
+}
+
+function addCreatorRipple(x, y) {
+  CREATOR_RIPPLES.push({
+    x,
+    y,
+    r: 0,
+    maxR: 45 + Math.random() * 25,
+    life: 0.45
+  });
+}
+
+function drawClassicDust(proj) {
+  const D = 120;
+  for (let i = 0; i < D; i++) {
+    const pick = proj[Math.floor(Math.random() * proj.length)];
+    if (!pick || !pick.p) continue;
+    const { x, y } = pick.p;
+
+    const jitterX = (Math.random() - 0.5) * 18;
+    const jitterY = (Math.random() - 0.5) * 18;
+    const alpha = 0.05 + Math.random() * 0.12;
+
+    ctx.fillStyle = `rgba(255,255,255,${alpha})`;
+    ctx.beginPath();
+    ctx.arc(x + jitterX, y + jitterY, Math.random() * 1.2 + 0.3, 0, Math.PI*2);
+    ctx.fill();
+  }
 }
 
 function loop() {
@@ -977,8 +1005,22 @@ function loop() {
       ctx.strokeStyle = 'rgba(255,230,170,0.9)';
       ctx.lineWidth = 1.0;
       ctx.stroke();
+    }}
+    for (let i = CREATOR_RIPPLES.length - 1; i >= 0; i--) {
+      const rp = CREATOR_RIPPLES[i];
+      rp.r += 120 * 0.016;
+      rp.life -= 0.016;
+      if (rp.life <= 0) {
+        CREATOR_RIPPLES.splice(i, 1);
+        continue;
+      }
+      const alpha = Math.max(0, Math.min(0.45, rp.life / 0.55 * 0.45));
+      ctx.lineWidth = 1.1;
+      ctx.strokeStyle = `rgba(255,230,170,${alpha})`;
+      ctx.beginPath();
+      ctx.arc(rp.x, rp.y, rp.r, 0, Math.PI * 2);
+      ctx.stroke();
     }
-  }
 
     requestAnimationFrame(loop);
     return; 
@@ -994,6 +1036,7 @@ function loop() {
       const p = projectToScreen(v, W, H);
       proj[i] = { v, p };
     }
+    drawClassicDust(proj);
 
     if (classic.auto) {
       classic.yaw += classic.autoYaw;
@@ -1007,23 +1050,23 @@ function loop() {
       const v = cached.v;
       const p = cached.p;
       if (!p) continue;
-
+    
       const depth = Math.max(0.001, v.z);
-      const flick = 0.5 + 0.5 * Math.sin((1.35 * s0.twSpeed) * t + s0.phase);
-      let baseAlpha = Math.max(0.20, 0.30 + 0.45 / depth);
+      const flick = 0.5 + 0.5 * Math.sin((1.25 * s0.twSpeed) * t + s0.phase);
+      let baseAlpha = Math.max(0.25, 0.34 + 0.50 / depth);
       baseAlpha += (s0.aBoost || 0);
-      const alpha = Math.min(0.92, baseAlpha * (0.55 + 0.65 * flick));
-      const sizeBase = Math.max(0.65, s0.mag * (0.80 + 0.25 / depth));
+      const alpha = Math.min(0.95, baseAlpha * (0.60 + 0.70 * flick));
+      const sizeBase = Math.max(0.6, s0.mag * (0.75 + 0.22 / depth));
       const size = sizeBase * (0.80 + 0.55 * flick);
-      const rHalo = size * 1.85;
+      const rHalo = size * 1.8;
       const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, rHalo);
-
       g.addColorStop(0, `rgba(255,255,255,${alpha * 0.55})`);
       g.addColorStop(1, `rgba(255,255,255,0)`);
       ctx.fillStyle = g;
       ctx.beginPath();
       ctx.arc(p.x, p.y, rHalo, 0, Math.PI*2);
       ctx.fill();
+
       ctx.beginPath();
       ctx.arc(p.x, p.y, size, 0, Math.PI*2);
       ctx.fillStyle = `rgba(255,255,255,${alpha})`;
