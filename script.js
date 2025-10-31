@@ -481,53 +481,110 @@ let spawnDelay = Math.random() * 15 + 15;
 
 const USER_CONSTELLATIONS = []; 
 
-const ORION_STARS = (function() {
+const deg2rad = d => d * Math.PI / 180;
+function raHMS(h, m, s) {
+  return (h + m/60 + s/3600) * 15; 
+}
+function raDecToXYZ(raDeg, decDeg) {
+  const ra = deg2rad(raDeg);
+  const dec = deg2rad(decDeg);
+  const x = Math.cos(dec) * Math.cos(ra);
+  const y = Math.sin(dec);
+  const z = Math.cos(dec) * Math.sin(ra);
+  return { x, y, z };
+}
 
-  const deg2rad = d => d * Math.PI / 180;
-
-  function raHMS(h, m, s) {
-    return (h + m/60 + s/3600) * 15; 
-  }
-
-  function raDecToXYZ(raDeg, decDeg) {
-    const ra = deg2rad(raDeg);
-    const dec = deg2rad(decDeg);
-    const x = Math.cos(dec) * Math.cos(ra);
-    const y = Math.sin(dec);
-    const z = Math.cos(dec) * Math.sin(ra);
-    return { x, y, z };
-  }
-
-  const stars = [
-    // 0 Betelgeuse 
-    raDecToXYZ(raHMS(5,55,10), 7.4),
-    // 1 Bellatrix 
-    raDecToXYZ(raHMS(5,25,7), 6.35),
-    // 2 Alnitak 
-    raDecToXYZ(raHMS(5,40,45), -1.93),
-    // 3 Alnilam 
-    raDecToXYZ(raHMS(5,36,13), -1.2),
-    // 4 Mintaka 
-    raDecToXYZ(raHMS(5,32,0), -0.28),
-    // 5 Saiph 
-    raDecToXYZ(raHMS(5,47,45), -9.66),
-    // 6 Rigel 
-    raDecToXYZ(raHMS(5,14,32), -8.2),
-    // 7 Meissa 
-    raDecToXYZ(raHMS(5,35,8), 9.93),
-  ];
-
-  return stars;
-})();
-
-const ORION_EDGES = [
-  [7, 0], [7, 1],
-  [0, 1],
-  [0, 2], [2, 5],
-  [1, 4], [4, 6],
-  [2, 3], [3, 4],
-  [5, 6],
-];
+const KNOWN_CONSTELLATIONS = {
+  orion: {
+    label: 'Orion',
+    color: '255,230,170',
+    stars: [
+      // 0 Betelgeuse 
+      raDecToXYZ(raHMS(5,55,10), 7.4),
+      // 1 Bellatrix 
+      raDecToXYZ(raHMS(5,25,7), 6.35),
+      // 2 Alnitak 
+      raDecToXYZ(raHMS(5,40,45), -1.93),
+      // 3 Alnilam 
+      raDecToXYZ(raHMS(5,36,13), -1.2),
+      // 4 Mintaka 
+      raDecToXYZ(raHMS(5,32,0), -0.28),
+      // 5 Saiph 
+      raDecToXYZ(raHMS(5,47,45), -9.66),
+      // 6 Rigel 
+      raDecToXYZ(raHMS(5,14,32), -8.2),
+      // 7 Meissa 
+      raDecToXYZ(raHMS(5,35,8), 9.93),
+    ],
+    edges: [
+      [7,0], [7,1],
+      [0,1],
+      [0,2], [2,5],
+      [1,4], [4,6],
+      [2,3], [3,4],
+      [5,6],
+    ],
+    labelFrom: [2,3,4],
+  },
+  ursa_major: {
+    label: 'Ursa Major',
+    color: '173,216,255',
+    stars: [
+      // 0 Dubhe 
+      raDecToXYZ(raHMS(11, 3, 43), +61.75),
+      // 1 Merak 
+      raDecToXYZ(raHMS(11, 1, 50), +56.38),
+      // 2 Phecda 
+      raDecToXYZ(raHMS(11, 53, 49), +53.69),
+      // 3 Megrez 
+      raDecToXYZ(raHMS(12, 15, 25), +57.03),
+      // 4 Alioth 
+      raDecToXYZ(raHMS(12, 54, 1), +55.96),
+      // 5 Mizar 
+      raDecToXYZ(raHMS(13, 23, 55), +54.93),
+      // 6 Alkaid 
+      raDecToXYZ(raHMS(13, 47, 32), +49.31),
+    ],
+        edges: [
+      [7,0], [7,1],
+      [0,1],
+      [0,2], [2,5],
+      [1,4], [4,6],
+      [2,3], [3,4],
+      [5,6],
+    ],
+    labelFrom: [2,3,4],
+  },
+  ursa_major: {
+    label: 'Ursa Major',
+    color: '173,216,255',
+    stars: [
+      // 0 Dubhe 
+      raDecToXYZ(raHMS(11, 3, 43), +61.75),
+      // 1 Merak 
+      raDecToXYZ(raHMS(11, 1, 50), +56.38),
+      // 2 Phecda 
+      raDecToXYZ(raHMS(11, 53, 49), +53.69),
+      // 3 Megrez 
+      raDecToXYZ(raHMS(12, 15, 25), +57.03),
+      // 4 Alioth 
+      raDecToXYZ(raHMS(12, 54, 1), +55.96),
+      // 5 Mizar 
+      raDecToXYZ(raHMS(13, 23, 55), +54.93),
+      // 6 Alkaid 
+      raDecToXYZ(raHMS(13, 47, 32), +49.31),
+    ],
+        edges: [
+      [7,0], [7,1],
+      [0,1],
+      [0,2], [2,5],
+      [1,4], [4,6],
+      [2,3], [3,4],
+      [5,6],
+    ],
+    labelFrom: [2,3,4],
+  },
+};
 
 const CONSTEL_STATE = {
   active: false,
@@ -1111,12 +1168,12 @@ function fbm(x, y) {
   }
   return v;
 }
-function drawOrionOverlay(alpha, yaw, pitch) {
+function drawConstellationOverlay(constel, alpha, yaw, pitch) {
   const W = canvas.width;
   const H = canvas.height;
   const projected = [];
-  for (let i = 0; i < ORION_STARS.length; i++) {
-    const v = creatorViewOf(ORION_STARS[i], yaw, pitch);
+  for (let i = 0; i < constel.stars.length; i++) {
+    const v = creatorViewOf(constel.stars[i], yaw, pitch);
     const p = projectToScreen(v, W, H);
     if (!p) {
       projected.push(null);
@@ -1126,10 +1183,10 @@ function drawOrionOverlay(alpha, yaw, pitch) {
   }
 
   ctx.save();
-  ctx.lineWidth = 1.1;
-  ctx.strokeStyle = `rgba(255,230,170,${alpha * 0.45})`;
-  ctx.setLineDash([]);
-  for (const [i, j] of ORION_EDGES) {
+
+  ctx.lineWidth = 1.0;
+  ctx.strokeStyle = `rgba(${constel.color || '255,230,170'}, ${alpha * 0.45})`;
+  for (const [i, j] of constel.edges) {
     const A = projected[i];
     const B = projected[j];
     if (!A || !B) continue;
@@ -1138,7 +1195,6 @@ function drawOrionOverlay(alpha, yaw, pitch) {
     ctx.lineTo(B.p.x, B.p.y);
     ctx.stroke();
   }
-  ctx.setLineDash([]);
 
   for (let i = 0; i < projected.length; i++) {
     const P = projected[i];
@@ -1158,18 +1214,24 @@ function drawOrionOverlay(alpha, yaw, pitch) {
     ctx.fill();
   }
 
-  const beltPts = [projected[2], projected[3], projected[4]].filter(Boolean);
-  if (beltPts.length) {
-    let sx = 0, sy = 0;
-    for (const B of beltPts) { sx += B.p.x; sy += B.p.y; }
-    sx /= beltPts.length;
-    sy /= beltPts.length;
-    ctx.font = '500 14px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
-    ctx.fillStyle = `rgba(255,255,255,${alpha})`;
-    ctx.strokeStyle = `rgba(0,0,0,${alpha*0.6})`;
-    ctx.lineWidth = 3;
-    ctx.strokeText('Orion', sx + 10, sy - 10);
-    ctx.fillText('Orion', sx + 10, sy - 10);
+  if (constel.labelFrom && constel.labelFrom.length) {
+    let sx = 0, sy = 0, cnt = 0;
+    for (const idx of constel.labelFrom) {
+      const P = projected[idx];
+      if (!P) continue;
+      sx += P.p.x;
+      sy += P.p.y;
+      cnt++;
+    }
+    if (cnt) {
+      sx /= cnt; sy /= cnt;
+      ctx.font = '500 14px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+      ctx.strokeStyle = `rgba(0,0,0,${alpha*0.6})`;
+      ctx.lineWidth = 3;
+      ctx.strokeText(constel.label, sx + 10, sy - 10);
+      ctx.fillStyle = `rgba(255,255,255,${alpha})`;
+      ctx.fillText(constel.label, sx + 10, sy - 10);
+    }
   }
 
   ctx.restore();
@@ -1487,9 +1549,10 @@ function loop() {
     if (!CONSTEL_STATE.active) {
       CONSTEL_STATE.cooldown += 0.016;
       if (CONSTEL_STATE.cooldown >= CONSTEL_STATE.period) {
-        
+        const keys = Object.keys(KNOWN_CONSTELLATIONS);
+        const pick = keys[Math.floor(Math.random() * keys.length)];
         CONSTEL_STATE.active = true;
-        CONSTEL_STATE.name = 'orion';
+        CONSTEL_STATE.name = pick;
         CONSTEL_STATE.t = 0;
         CONSTEL_STATE.cooldown = 0;
       }
@@ -1508,8 +1571,9 @@ function loop() {
         alpha = Math.max(0, left / 1.5);
       }
 
-      if (CONSTEL_STATE.name === 'orion' && alpha > 0) {
-        drawOrionOverlay(alpha, classic.yaw, classic.pitch);
+      const c = KNOWN_CONSTELLATIONS[CONSTEL_STATE.name];
+      if (c && alpha > 0) {
+        drawConstellationOverlay(c, alpha, classic.yaw, classic.pitch);
       }
 
       if (T >= DUR) {
