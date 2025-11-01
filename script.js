@@ -674,32 +674,6 @@ const KNOWN_CONSTELLATIONS = {
   ],
   labelFrom: [0,1,2],
 },
-pegasus: {
-   label: 'Pegasus',
-   color: '190,210,2550',
-   stars: [
-    // 0 Markab 
-    raDecToXYZ(raHMS(23, 4, 46), +15.21),
-    // 1 Scheat 
-    raDecToXYZ(raHMS(23, 3, 46), +28.08),
-    // 2 Algenib 
-    raDecToXYZ(raHMS(0, 13, 14), +15.18),
-    // 3 Alpheratz 
-    raDecToXYZ(raHMS(0, 8, 23), +29.09),
-    // 4 Enif 
-    raDecToXYZ(raHMS(21, 44, 12), +9.87),
-    // 5 Homam 
-    raDecToXYZ(raHMS(22, 41, 28), +10.83),
-    // 6 Matar 
-    raDecToXYZ(raHMS(22, 50, 4), +30.22),
-  ],
-  edges: [
-    [0,1], [1,3], [3,2], [2,0],
-    [0,5], [5,4],
-    [1,6],
-  ],
-  labelFrom: [0,1,2],
-},
 lyra: {
   label: 'Lyra',
   color: '180,200,255',
@@ -716,19 +690,126 @@ lyra: {
     raDecToXYZ(raHMS(18, 44, 46), +37.60),
   ],
   edges: [
-    [4,3], [1,2], [2,0], [1,4], [3,2]
+    [4,3], [1,2], [0,4], [1,4], [3,2]
   ],
   labelFrom: [0,3,2],
 },
+carina: {
+  label: 'Carina',
+  color: '200,230,255',
+  stars: [
+    // 0 Canopus 
+    raDecToXYZ(raHMS(6, 23, 57), -52.70),
+    // 1 Miaplacidus 
+    raDecToXYZ(raHMS(9, 13, 12), -69.72),
+    // 2 Avior 
+    raDecToXYZ(raHMS(8, 22, 31), -59.51),
+    // 3 Aspidiske 
+    raDecToXYZ(raHMS(9, 17, 6), -59.27),
+    // 4 Theta Car
+    raDecToXYZ(raHMS(10, 42, 57), -64.39),
+  ],
+  edges: [
+    [0,2], [3,2], [3,4], [1,4]
+  ],
+  labelFrom: [0,2,3],
+},
+carina: {
+  label: 'Carina',
+  color: '200,230,255',
+  stars: [
+    // 0 Canopus 
+    raDecToXYZ(raHMS(6, 23, 57), -52.70),
+    // 1 Miaplacidus 
+    raDecToXYZ(raHMS(9, 13, 12), -69.72),
+    // 2 Avior 
+    raDecToXYZ(raHMS(8, 22, 31), -59.51),
+    // 3 Aspidiske 
+    raDecToXYZ(raHMS(9, 17, 6), -59.27),
+    // 4 Theta Car
+    raDecToXYZ(raHMS(10, 42, 57), -64.39),
+  ],
+  edges: [
+    [0,2], [3,2], [3,4], [1,4]
+  ],
+  labelFrom: [0,2,3],
+},
+aquila: {
+  label: 'Aquila',
+  color: '190,230,255',
+  stars: [
+    // 0 Altair 
+    raDecToXYZ(raHMS(19, 50, 47), +8.87),
+    // 1 Tarazed 
+    raDecToXYZ(raHMS(19, 46, 15), +10.61),
+    // 2 Alshain 
+    raDecToXYZ(raHMS(19, 55, 18), +6.41),
+    // 3 δ Aql
+    raDecToXYZ(raHMS(19, 25, 29), +3.12),
+    // 4 ζ Aql
+    raDecToXYZ(raHMS(19, 5, 25), +13.86),
+    // 5 η Aql
+    raDecToXYZ(raHMS(19, 52, 28), +1.00),
+  ],
+  edges: [
+    [1,0],
+    [0,2],
+    [0,4],
+    [0,3],
+    [2,5],
+  ],
+  labelFrom: [0,1,2],
+},
+crux: {
+  label: 'Crux',
+  color: '255,230,180',
+  stars: [
+    // 0 Acrux 
+    raDecToXYZ(raHMS(12, 26, 36), -63.10),
+    // 1 Mimosa 
+    raDecToXYZ(raHMS(12, 47, 43), -59.69),
+    // 2 Gacrux 
+    raDecToXYZ(raHMS(12, 31, 9), -57.11),
+    // 3 δ Cru
+    raDecToXYZ(raHMS(12, 15, 8), -58.75),
+    // 4 ε Cru
+    raDecToXYZ(raHMS(12, 21, 22), -60.40),
+  ],
+  edges: [
+    [0,2], 
+    [3,1], 
+  ],
+  labelFrom: [0,1,2],
+},
+gemini: {
+  label: 'Gemini',
+  color: '220,245,255',
+  stars: [
+    // 0 Castor 
+    raDecToXYZ(raHMS(7, 34, 36), +31.89),
+    // 1 Pollux 
+    raDecToXYZ(raHMS(7, 45, 19), +28.03),
+    // 2 Alhena 
+    raDecToXYZ(raHMS(6, 37, 42), +16.40),
+    // 3 Wasat 
+    raDecToXYZ(raHMS(7, 20, 7), +21.98),
+    // 4 Mekbuda 
+    raDecToXYZ(raHMS(7, 4, 6), +20.57),
+    // 5 Tejat 
+    raDecToXYZ(raHMS(6, 22, 58), +22.51),
+    // 6 Propus 
+    raDecToXYZ(raHMS(6, 14, 52), +22.51),
+  ],
+  edges: [
+    [0,1],
+    [3,4], [4,2],
+    [1,3], [5,6],
+    [0,5]
+  ],
+  labelFrom: [0,1,3],
+},
 };
 
-window.addEventListener('keydown', (e) => {
-  if (e.key.toLowerCase() === 'y' && currentMode === 'classic') {
-    CONSTEL_STATE.active = true;
-    CONSTEL_STATE.name = 'lyra';
-    CONSTEL_STATE.t = 0;
-  }
-});
 const CONSTEL_STATE = {
   active: false,
   name: null,        
@@ -1690,28 +1771,34 @@ function loop() {
     render3DMeteors('classic', classic.yaw, classic.pitch);
         
     if (!CONSTEL_STATE.active) {
-      CONSTEL_STATE.cooldown += 0.016;
-      if (CONSTEL_STATE.cooldown >= CONSTEL_STATE.period) {
-        const keys = Object.keys(KNOWN_CONSTELLATIONS);
-        const pick = keys[Math.floor(Math.random() * keys.length)];
-        CONSTEL_STATE.active = true;
-        CONSTEL_STATE.name = pick;
-        CONSTEL_STATE.t = 0;
-        CONSTEL_STATE.cooldown = 0;
+      const keys = Object.keys(KNOWN_CONSTELLATIONS);
+      let pick = keys[Math.floor(Math.random() * keys.length)];
+
+      if (CONSTEL_STATE.last && keys.length > 1) {
+        let tries = 0;
+        while (pick === CONSTEL_STATE.last && tries < 5) {
+          pick = keys[Math.floor(Math.random() * keys.length)];
+          tries++;
+        }
       }
+
+      CONSTEL_STATE.active = true;
+      CONSTEL_STATE.name = pick;
+      CONSTEL_STATE.last = pick;   
+      CONSTEL_STATE.t = 0;
     } else {
       CONSTEL_STATE.t += 0.016;
       const T = CONSTEL_STATE.t;
-      const DUR = CONSTEL_STATE.dur;    
-      
+      const DUR = 10;   
+
       let alpha = 0;
-      if (T < 1.5) {
-        alpha = T / 1.5;
-      } else if (T < DUR - 1.5) {
-        alpha = 1;
+      if (T < 1.2) {
+        alpha = T / 1.2;              
+      } else if (T < DUR - 1.2) {
+        alpha = 1;                    
       } else {
         const left = DUR - T;
-        alpha = Math.max(0, left / 1.5);
+        alpha = Math.max(0, left / 1.2); 
       }
 
       const c = KNOWN_CONSTELLATIONS[CONSTEL_STATE.name];
