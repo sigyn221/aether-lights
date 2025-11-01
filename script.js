@@ -1,13 +1,14 @@
 let currentMode = 'classic';
+let creatorQuotesEnabled = true;
 
 const canvas = document.getElementById('sky');  
 const ctx = canvas.getContext('2d');             
 let proj = null;   
 
 const MODE_HINT = {
-  classic: 'Classic: arrows=move, space=pause drift, S=shooting star',
-  creator: 'Creator: click stars to connect, Enter=finish group, Esc=cancel',
-  waves:   'Waves: G=emit wave, arrows/space as classic',
+  classic: 'Classic: arrows=rotate sky, space=auto camera on/off, M=3D meteor, R=meteor shower',
+  creator: 'Creator: click stars=connect, Enter=save, Esc=cancel, Backspace=undo, arrows=rotate, space=auto camera on/off, R=meteor shower, X= quotes on/off',
+  waves:   'Waves: click=emit wave, hold P=planet, hold B=black hole, arrows=move cam, space=auto camera on/off'
 };
 
 const cam = { x: 0, y: 0, vx: 0.5, vy: 0.05, auto: true };
@@ -52,6 +53,62 @@ let meteorShower = {
   vx: 0,
   vy: 0
 };
+let autoConstellationEnabled = true;  
+let quoteActive = false;
+let quoteTimer = 0;
+let currentQuote = '';
+const QUOTES = [
+  "We are made of star stuff. – Carl Sagan",
+  "Somewhere, something incredible is waiting to be known. – Carl Sagan",
+  "The cosmos is within us; we are a way for the universe to know itself. – Carl Sagan",
+  "Across the sea of space, the stars are other suns. – H.G. Wells",
+  "Not only do we live among the stars, the stars live within us. – Neil deGrasse Tyson",
+  "Ad astra per aspera – Through hardships to the stars.",
+  "The nitrogen in our DNA, the calcium in our teeth, the iron in our blood—all were made in stars. – Carl Sagan",
+  "The stars don’t look bigger, but they do look brighter. – Sally Ride",
+  "We are an impossibility in an impossible universe. – Ray Bradbury",
+  "Shoot for the moon. Even if you miss, you'll land among the stars. – Norman Vincent Peale",
+  "To confine our attention to terrestrial matters would be to limit the human spirit. – Stephen Hawking",
+  "I know nothing with any certainty, but the sight of the stars makes me dream. – Vincent van Gogh",
+  "The universe is under no obligation to make sense to you. – Neil deGrasse Tyson",
+  "Dwell on the beauty of life. Watch the stars, and see yourself running with them. – Marcus Aurelius",
+  "We are all in the gutter, but some of us are looking at the stars. – Oscar Wilde",
+  "Space is for everybody. It’s not just for a few people in science or math. – Christa McAuliffe",
+  "That’s one small step for a man, one giant leap for mankind. – Neil Armstrong",
+  "To the stars who listen and the dreams that are answered. – Sarah J. Maas",
+  "Look up at the stars and not down at your feet. – Stephen Hawking",
+  "The Earth is the cradle of humanity, but one cannot remain in the cradle forever. – Konstantin Tsiolkovsky",
+  "You are the universe, expressing itself as a human for a little while. – Eckhart Tolle",
+  "Without darkness, we would never see the stars. – Stephenie Meyer",
+  "I’d rather be a comet than a star. – Jim Morrison",
+  "The sky is the daily bread of the eyes. – Ralph Waldo Emerson",
+  "Wonder is the beginning of wisdom. – Socrates",
+  "Stars can’t shine without darkness. – D.H. Sidebottom",
+  "The stars are the landmarks of the universe. – John Herschel",
+  "Even the darkest night will end and the sun will rise. – Victor Hugo",
+  "Astronomy compels the soul to look upward. – Plato",
+  "Curiosity is the essence of human existence. – Gene Cernan",
+  "If you want to find the secrets of the universe, think in terms of energy, frequency, and vibration. – Nikola Tesla",
+  "We are travelers on a cosmic journey, stardust, swirling and dancing in the eddies and whirlpools of infinity. – Paulo Coelho",
+  "We choose to go to the moon, not because it is easy, but because it is hard. – John F. Kennedy",
+  "For small creatures such as we, the vastness is bearable only through love. – Carl Sagan",
+  "There are no passengers on spaceship Earth. We are all crew. – Marshall McLuhan",
+  "The stars are a reminder that we are small but capable of greatness. – Anonymous",
+  "Keep your eyes on the stars, and your feet on the ground. – Theodore Roosevelt",
+  "We are born from the dust of stars, and to the stars we shall return. – Anonymous",
+  "The universe is not only stranger than we imagine, it is stranger than we can imagine. – J.B.S. Haldane",
+  "Space is to place as eternity is to time. – Joseph Joubert",
+  "There wouldn’t be a sky full of stars if we were all meant to wish on the same one. – Frances Clark",
+  "Time and space are modes by which we think and not conditions in which we live. – Albert Einstein",
+  "You cannot look up at the night sky and remain indifferent to the infinite. – Anonymous",
+  "All of us are made of the same cosmic dust, breathing under the same stars. – Anonymous",
+  "The stars remind us that no matter how small we feel, we belong to something vast. – Anonymous",
+  "Every atom in your body came from a star that exploded. – Lawrence Krauss",
+  "The universe is full of magical things patiently waiting for our wits to grow sharper. – Eden Phillpotts",
+  "Man must rise above the Earth—to the top of the atmosphere and beyond—for only thus will he fully understand the world in which he lives. – Socrates",
+  "We are the children of the stars, destined to return to them. – Anonymous"
+];
+
   let creator = {
   active: false,
   play: false,
@@ -1079,6 +1136,10 @@ window.addEventListener('keydown', (e) => {
         if (e.key === 'r' || e.key === 'R') {
         creator.play = !creator.play;  
         }
+        if (e.key.toLowerCase() === 'x') {
+        autoConstellationEnabled = !autoConstellationEnabled;
+        console.log("Auto-constellations:", autoConstellationEnabled ? "ON" : "OFF");
+        }
     }  
     if (e.key === 'ArrowUp') {
         cam.vy -= kick;
@@ -1376,6 +1437,42 @@ function render3DMeteors(mode, yaw, pitch) {
     ctx.fill();
   }
 }
+function renderQuoteOverlayCreator() {
+  if (!creatorQuotesEnabled) return;
+
+  quoteTimer += 0.016;
+
+  if (quoteTimer >= 2 && !quoteActive) {
+    currentQuote = QUOTES[Math.floor(Math.random() * QUOTES.length)];
+    quoteActive = true;
+    quoteTimer = 0;
+  }
+
+  if (!quoteActive) return;
+
+  const t = quoteTimer;
+  let opacity = 1;
+  if (t < 0.6) opacity = t / 0.6;         
+  else if (t > 7) opacity = Math.max(0, 1 - (t - 7) / 1.2); 
+
+  const W = canvas.width;
+  const H = canvas.height;
+
+  ctx.save();
+  ctx.globalAlpha = opacity;
+  ctx.fillStyle = `rgba(255,255,255,${opacity})`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.font = '20px Georgia';
+  ctx.fillText(currentQuote, W / 2, H / 2);
+  ctx.restore();
+
+  if (opacity <= 0) {
+    quoteActive = false;
+    quoteTimer = 0;
+  }
+}
+
 function nrand(x, y) {
   const s = Math.sin(x * 127.1 + y * 311.7) * 43758.5453;
   return s - Math.floor(s);
@@ -1716,6 +1813,7 @@ function loop() {
     }
 
     render3DMeteors('creator', creator.yaw, creator.pitch);
+    renderQuoteOverlayCreator();
 
     requestAnimationFrame(loop);
     return; 
@@ -1769,7 +1867,6 @@ function loop() {
     }
     
     render3DMeteors('classic', classic.yaw, classic.pitch);
-        
     if (!CONSTEL_STATE.active) {
       const keys = Object.keys(KNOWN_CONSTELLATIONS);
       let pick = keys[Math.floor(Math.random() * keys.length)];
@@ -2083,4 +2180,4 @@ function loop() {
   requestAnimationFrame(loop);
 }
     
-loop();
+loop(); 
