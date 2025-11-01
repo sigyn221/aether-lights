@@ -801,26 +801,6 @@ carina: {
   ],
   labelFrom: [0,2,3],
 },
-carina: {
-  label: 'Carina',
-  color: '200,230,255',
-  stars: [
-    // 0 Canopus 
-    raDecToXYZ(raHMS(6, 23, 57), -52.70),
-    // 1 Miaplacidus 
-    raDecToXYZ(raHMS(9, 13, 12), -69.72),
-    // 2 Avior 
-    raDecToXYZ(raHMS(8, 22, 31), -59.51),
-    // 3 Aspidiske 
-    raDecToXYZ(raHMS(9, 17, 6), -59.27),
-    // 4 Theta Car
-    raDecToXYZ(raHMS(10, 42, 57), -64.39),
-  ],
-  edges: [
-    [0,2], [3,2], [3,4], [1,4]
-  ],
-  labelFrom: [0,2,3],
-},
 aquila: {
   label: 'Aquila',
   color: '190,230,255',
@@ -895,6 +875,77 @@ gemini: {
   ],
   labelFrom: [0,1,3],
 },
+  auriga: {
+    label: 'Auriga',
+    color: '235,220,255',
+    stars: [
+      // 0 Capella
+      raDecToXYZ(raHMS(5,16,41), +46.0),
+      // 1 Menkalinan
+      raDecToXYZ(raHMS(5,59,32), +44.95),
+      // 2 Mahasim
+      raDecToXYZ(raHMS(5,59,43), +37.21),
+      // 3 Almaaz
+      raDecToXYZ(raHMS(5,1,58), +43.83),
+      // 4 Hassaleh
+      raDecToXYZ(raHMS(5,5,27), +46.0),
+    ],
+    edges: [
+      [3,0], [0,4], [4,1], [1,2], [2,3],
+      [0,1]
+    ],
+    labelFrom: [0,1,3],
+  },
+  canis_major: {
+    label: 'Canis Major',
+    color: '255,220,200',
+    stars: [
+      // 0 Sirius
+      raDecToXYZ(raHMS(6,45,9), -16.72),
+      // 1 Mirzam
+      raDecToXYZ(raHMS(6,22,41), -17.95),
+      // 2 Wezen
+      raDecToXYZ(raHMS(7,8,23), -26.39),
+      // 3 Adhara
+      raDecToXYZ(raHMS(6,58,37), -28.97),
+      // 4 Furud
+      raDecToXYZ(raHMS(7,16,41), -29.30),
+      // 5 Aludra
+      raDecToXYZ(raHMS(7,24,5), -29.30),
+      // 6 Muliphein
+      raDecToXYZ(raHMS(7,3,45), -15.63),
+    ],
+    edges: [
+      [0,1], [0,2], [2,3], [3,4], [4,5],
+      [0,6]
+    ],
+    labelFrom: [0,2,3],
+  },
+
+  sagittarius: {
+    label: 'Sagittarius',
+    color: '255,235,180',
+    stars: [
+      // 0 Kaus Borealis 
+      raDecToXYZ(raHMS(18,27,58), -25.4),
+      // 1 Kaus Media 
+      raDecToXYZ(raHMS(18,20,59), -29.8),
+      // 2 Kaus Australis 
+      raDecToXYZ(raHMS(18,24,10), -34.4),
+      // 3 Ascella 
+      raDecToXYZ(raHMS(18,43,2), -29.9),
+      // 4 Nunki 
+      raDecToXYZ(raHMS(18,55,15), -26.3),
+      // 5 Alnasl 
+      raDecToXYZ(raHMS(18,5,48), -30.4),
+    ],
+    edges: [
+      [0,1], [1,2], [2,3], [3,4],
+      [1,5], [5,2],
+      [0,5],
+    ],
+    labelFrom: [0,2,3],
+  },
 };
 
 const CONSTEL_STATE = {
@@ -1143,16 +1194,24 @@ window.addEventListener('keydown', (e) => {
     }
     if (currentMode === 'creator' && creator.active) {
       if (e.key === 'Enter') {
-      if (creator.tempEdges.length > 0) {
+        if (creator.tempEdges.length > 0) {
           const color = creator.palette[creator.nextColorIdx % creator.palette.length];
           creator.nextColorIdx++;
+
           const name = prompt('Name your constellation:', 'My Constellation') || 'Unnamed';
-          USER_CONSTELLATIONS.push({ name, color, edges: [...creator.tempEdges] });
+          const desc = prompt('Short description (optional):', '') || '';
+
+          USER_CONSTELLATIONS.push({
+            name,
+            desc,
+            color,
+            edges: [...creator.tempEdges]
+          });
         }
         creator.picked = [];
         creator.tempEdges = [];
         creator.hoverStar = -1;
-        }
+      }
         if (e.key === 'Escape') {
         creator.picked = [];
         creator.tempEdges = [];
@@ -1803,11 +1862,19 @@ function loop() {
       cnt++;
     }
     if (cnt) {
-      ctx.fillStyle = (col).replace(/0\.\d+/, '1.0');
-      ctx.font = '500 13px Inter, system-ui, sans-serif';
-      ctx.fillText(C.name, sx/cnt + 6, sy/cnt - 6);
+    const baseX = sx / cnt + 6;
+    const baseY = sy / cnt - 6;
+
+    ctx.fillStyle = (col).replace(/0\.\d+/, '1.0');
+    ctx.font = '500 13px Inter, system-ui, sans-serif';
+    ctx.fillText(C.name, baseX, baseY);
+
+    if (C.desc && C.desc.trim()) {
+      ctx.font = '400 11px Inter, system-ui, sans-serif';
+      ctx.fillText(C.desc.trim(), baseX, baseY + 14);
     }
   }
+}
 }
 
     if (creator.tempEdges.length) {
