@@ -76,3 +76,10 @@ Developed to make learning about constellations fun, interactive, and visually i
 
 ---
 
+## 🧠 Challenges & Learnings
+
+One of the biggest challenges was creating a realistic 3D spherical projection in the **Classic** mode.  
+Since the entire project runs on a single 2D canvas, I had to manually calculate 3D rotations and perspective projection for each star using trigonometric transformations — without using any 3D libraries.  
+Another major difficulty was implementing **planets and black holes** in the **Waves** mode: balancing the gravitational forces so that stars could orbit smoothly without getting instantly pulled in required constant fine-tuning of mass, range, and damping parameters.  
+I also optimized the physics to keep hundreds of stars moving smoothly at 60 FPS.  
+Through these challenges, I learned how to simulate motion and gravity in JavaScript, manage performance in canvas-based animations, and design systems that combine educational value with interactive fun.
