@@ -1,28 +1,25 @@
 <!DOCTYPE html>
-<html lang = "en">
+<html lang="en">
 <head>
-    <meta charset="UTF-8"/>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-    <title>Aether Lights</title>
-    <link rel="stylesheet" href="style.css">
-    <link id="theme-style" rel="stylesheet" href="style_classic.css">
-
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Aether Lights</title>
+  <link rel="stylesheet" href="style.css">
+  <link id="theme-style" rel="stylesheet" href="style_classic.css">
 </head>
 <body>
-    <div id="modes-panel">
+  <div id="modes-panel">
     <button data-mode="classic">Classic Starfield</button>
     <button data-mode="creator">Constellation Creator</button>
     <button data-mode="waves">Gravitational Waves</button>
-    </div>
+    <button data-action="fullscreen">⛶ Fullscreen</button>
+  </div>
 
-    <div id="hud" hidden>
-    <span id="hud-text">Classic: arrows=rotate sky, space=auto camera on/off, M=3D meteor, R=meteor shower</span>
-    </div>
+  <div id="hud" hidden>
+    <span id="hud-text">Classic: arrows=rotate sky, space=auto camera on/off, M=3D meteor, R=meteor shower, F=fullscreen</span>
+  </div>
 
-
-    </div>
-
-    <canvas id="sky"></canvas>
-    <script src="script.js"></script>
+  <canvas id="sky"></canvas>
+  <script src="script.js"></script>
 </body>
 </html>

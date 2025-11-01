@@ -6,10 +6,28 @@ const ctx = canvas.getContext('2d');
 let proj = null;   
 
 const MODE_HINT = {
-  classic: 'Classic: arrows=rotate sky, space=auto camera on/off, M=3D meteor, R=meteor shower',
-  creator: 'Creator: click stars=connect, Enter=save, Esc=cancel, Backspace=undo, arrows=rotate, space=auto camera on/off, R=meteor shower, X= quotes on/off',
-  waves:   'Waves: click=emit wave, hold P=planet, hold B=black hole, arrows=move cam, space=auto camera on/off'
+  classic: 'Classic: arrows=rotate sky, space=auto camera on/off, S=shooting star, M=3D meteor, R=meteor shower, F=fullscreen',
+  creator: 'Creator: click stars=connect, Enter=save, Esc=cancel, Backspace=undo, arrows=rotate, space=auto camera on/off, X=quotes on/off, R=meteor shower, F=fullscreen',
+  waves:   'Waves: click=emit wave, hold P=planet, hold B=black hole, arrows=move cam, space=auto camera on/off, A=auto waves, G=center wave, F=fullscreen'
 };
+
+function updateHUDText(mode) {
+  const hud = document.getElementById('hud');
+  const txt = document.getElementById('hud-text');
+  if (!hud || !txt) return;
+  txt.textContent = MODE_HINT[mode] || '';
+  hud.hidden = false;
+  clearTimeout(hud._t);
+  hud._t = setTimeout(() => { hud.hidden = true; }, 2000);
+}
+
+function toggleFullscreen() {
+  if (!document.fullscreenElement) {
+    document.documentElement.requestFullscreen?.();
+  } else {
+    document.exitFullscreen?.();
+  }
+}
 
 const cam = { x: 0, y: 0, vx: 0.5, vy: 0.05, auto: true };
 const CREATOR_RIPPLES = [];
@@ -343,6 +361,8 @@ function setMode(mode) {
  
   const theme = document.getElementById('theme-style');
   if (theme) theme.href = `style_${mode}.css`;
+  
+  updateHUDText(mode);
 
   const hud = document.getElementById('hud');
   const txt = document.getElementById('hud-text');
@@ -423,9 +443,19 @@ if (mode === 'classic') {
   const panel = document.getElementById('modes-panel');
   if (panel) {
     panel.addEventListener('click', (e) => {
-      const btn = e.target.closest('button[data-mode]');
+      const btn = e.target.closest('button');
       if (!btn) return;
-      setMode(btn.dataset.mode);
+
+      if (btn.dataset.mode) {
+        setMode(btn.dataset.mode);
+        return;
+      }
+
+      if (btn.dataset.action === 'fullscreen') {
+        toggleFullscreen();
+        updateHUDText(currentMode);
+        return;
+      }
     });
   }
   setMode('classic'); 
@@ -1159,6 +1189,11 @@ window.addEventListener('keydown', (e) => {
     }
     if (e.key === 's' || e.key === 'S') {
     spawnShootingStar(); 
+    }
+    if (e.key === 'f' || e.key === 'F') {
+      e.preventDefault();
+      toggleFullscreen();
+      updateHUDText(currentMode);
     }
     if (e.key === 'm' || e.key === 'M') {
     spawn3DMeteor();
@@ -2179,5 +2214,14 @@ function loop() {
 
   requestAnimationFrame(loop);
 }
-    
+    document.addEventListener('fullscreenchange', () => {
+      resize();
+      if (currentMode === 'creator' && creator.active) {
+        genCreatorStars(wantedCreatorStars());
+      }
+      if (currentMode === 'classic' && classic.active) {
+        genClassicStars(wantedClassicStars());
+      }
+    });
+
 loop(); 
